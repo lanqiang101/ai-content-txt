@@ -116,7 +116,7 @@ export const useStore = create<AppState>()(
       resetGeneration: () => set({ generation: initialGeneration }),
     }),
     {
-      name: 'ai-content-pipeline-config',
+      name: 'ai-content-txt-config',
     }
   )
 );
