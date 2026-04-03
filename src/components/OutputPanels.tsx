@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Copy, Download, Check, RefreshCw, Square } from 'lucide-react';
 import { GenerationState } from '../types';
+import { useStore } from '../store/useStore';
 import { useGeneration } from '../hooks/useGeneration';
 
 interface OutputPanelProps {
@@ -12,8 +13,9 @@ interface OutputPanelProps {
 
 const OutputPanel: React.FC<OutputPanelProps> = ({ title, content, stage, isLoading }) => {
   const [copied, setCopied] = useState(false);
-  const { regenerateStage, stopGeneration, generation } = useGeneration();
-  const isGeneratingThis = generation.isGeneratingStage === stage;
+  const { regenerateStageCycle, stopGeneration } = useGeneration();
+  const generation = useStore(state => state.generation);
+  const isGeneratingThis = generation.currentStage === stage && generation.isGenerating;
 
   const handleCopy = async () => {
     await navigator.clipboard.writeText(content);
@@ -35,9 +37,11 @@ const OutputPanel: React.FC<OutputPanelProps> = ({ title, content, stage, isLoad
 
   const handleRegenerate = async () => {
     try {
-      await regenerateStage(stage);
+      // For simplicity, always regenerate last cycle of this stage
+      const cycleCountMap: Record<number, number> = { 1: 2, 2: 3, 3: 2 };
+      const cycleCount = cycleCountMap[stage];
+      await regenerateStageCycle(stage, cycleCount);
     } catch (err) {
-      // Error is already handled in the hook
       console.error('Regenerate failed:', err);
     }
   };
@@ -114,13 +118,13 @@ export const OutputPanels: React.FC<OutputPanelsProps> = ({ generation }) => {
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
       <OutputPanel
-        title="阶段1 - 大纲"
+        title="阶段1 - 骨架"
         content={stage1Result}
         stage={1}
         isLoading={isGenerating && currentStage === 1}
       />
       <OutputPanel
-        title="阶段2 - 初稿"
+        title="阶段2 - 血肉"
         content={stage2Result}
         stage={2}
         isLoading={isGenerating && currentStage === 2}

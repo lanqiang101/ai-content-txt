@@ -59,183 +59,291 @@ const callModel = async (prompt: string, config: ModelConfig, signal: AbortSigna
   }
 };
 
+// 循环配置 - 黄金比例 2+3+2=7次
+export const CYCLE_CONFIG = {
+  stage1: { cycles: 2, name: '核心骨架搭建期' },
+  stage2: { cycles: 3, name: '血肉细节填充期' },
+  stage3: { cycles: 2, name: '去AI化质感打磨期' },
+  total: 7,
+};
+
 export const useGeneration = () => {
   const { config, params, generation, setGeneration, addToHistory } = useStore();
-  const { type, topic, keywords, wordCount, style } = params;
-  const { stage1Result, stage2Result } = generation;
+  const {
+    type, topic, keywords, wordCount, style,
+    reader, character, plot, rhythm, detail, emotion, antiAI
+  } = params;
+  const { cycleResults } = generation;
   const abortControllerRef = useRef<AbortController | null>(null);
 
-  const runFullPipeline = useCallback(async () => {
+  // 工具函数
+  const getPlatformName = (platform: string): string => {
+    const map: Record<string, string> = {
+      tomato: '番茄',
+      qidian: '起点',
+      jjwxc: '晋江',
+      zhihu: '知乎',
+      short: '短篇',
+      article: '公众号',
+    };
+    return map[platform] || platform;
+  };
+
+  const getAtmosphereName = (atmosphere: string): string => {
+    const map: Record<string, string> = {
+      depressed: '压抑',
+      warm: '温暖',
+      relaxed: '轻松',
+      tense: '紧张',
+    };
+    return map[atmosphere] || atmosphere;
+  };
+
+  const getEmotionStyleName = (style: string): string => {
+    const map: Record<string, string> = {
+      reserved: '内敛',
+      direct: '直白',
+      insincere: '口是心非',
+    };
+    return map[style] || style;
+  };
+
+  const getWritingStyle = (writingStyle: string): string => {
+    const map: Record<string, string> = {
+      hard: '冷硬',
+      soft: '温柔',
+      sharp: '犀利',
+      humor: '诙谐',
+      art: '文艺',
+    };
+    return map[writingStyle] || writingStyle;
+  };
+
+  // 构建完整prompt，根据当前阶段和循环注入参数
+  const buildPrompt = (stage: number, cycle: number, previousResult: string): string => {
+    let prompt = '';
+
+    // 基础信息 + 所有参数（always include for all stages/cycles）
+    prompt += `你现在是一位专业的小说创作AI，遵循用户的三阶段循环创作要求，当前正在创作：
+
+【基础信息】
+类型：小说
+主题：${topic}
+关键词：${keywords}
+目标总字数：大约${wordCount}字
+整体风格：${style || '默认'}
+
+【读者定位】
+- 年龄层：${reader.ageRange}
+- 性别偏好：${reader.genderPreference === 'male' ? '男频' : reader.genderPreference === 'female' ? '女频' : '通用'}
+- 核心追读诉求：${reader.coreAppeal}
+- 读者雷区：${reader.taboo || '无'}
+- 目标平台文风：${getPlatformName(reader.targetPlatform)}
+
+【人物深度设定】
+- 核心缺陷锚点：${character.coreFlaw || '无'}
+- 行为逻辑底层动机：${character.motivation || '无'}
+- 微习惯/口头禅/小癖好：${character.habits || '无'}
+- 情绪反差阈值：${character.emotionThreshold || '无'}
+- 人物成长弧光节点：${character.growthArc || '无'}
+
+【情节连贯设定】
+- 主线逻辑链：${plot.mainChain || '无'}
+- 伏笔埋设+回收计划：${plot.foreshadowing || '无'}
+- 支线与主线绑定比例：${plot.branchRatio}%（不超过比例，禁止无关支线）
+- 情节因果强制约束：${plot.causalConstraint ? '开启：要求无因不生果，禁止硬转折' : '关闭'}
+- 反转合理性校验：${plot.checkReversal ? '开启：要求反转必须合理' : '关闭'}
+
+【感官细节要求】
+- 五感描写比例：${detail.senseRatio || '无'}
+- 时代/地域专属细节：${detail.locationDetails || '无'}
+- 整体环境氛围：${getAtmosphereName(detail.atmosphere)}
+- 允许生活化随机插曲：${detail.randomInterlude ? '允许：加入吃饭走路等生活化小事，增加真实感' : '不允许'}
+
+【节奏张力要求】
+- 快慢节奏交替：${rhythm.alternation || '3段平淡 + 1段高潮'}
+- 高潮密度：${rhythm.climaxDensity || '每3k字一小高潮，每1w字一中高潮'}
+- 每章结尾留悬念钩子：${rhythm.chapterEndHook ? '要求：每章结尾必须留钩子吸引读者继续阅读' : '不要求'}
+- 冲突触发频率：${rhythm.conflictFrequency}%（频率越高，冲突越多越密集）
+- 允许松弛缓冲节点：${rhythm.bufferNodes ? '允许：需要缓冲段落，避免全程紧绷' : '不允许'}
+
+【情感共鸣要求】
+- 情感递进阶梯：${emotion.progression}
+- 共情触发场景：${emotion.empathyScenes}
+- 人物情感流露方式：${getEmotionStyleName(emotion.expressionStyle)}
+- 核心情绪落点：${emotion.coreEmotion || '无'}
+
+【去AI化优化要求】
+- 模板化句式删除比例：${antiAI.templateDeletePercent}%（删除 "只见/就在这时/殊不知" 等模板化开头）
+- 口语化语病容忍度：${antiAI.casualTolerance}%（允许真人写作的随性，不需要完全符合语法）
+- 非标准化转折概率：${antiAI.unpredictableTurnPercent}%（越高越多意想不到的转折）
+- 生活化留白比例：${antiAI.whitespacePercent}%（越高越多留白留给读者想象）
+- 文笔个人风格：${getWritingStyle(antiAI.writingStyle)}
+`;
+
+    // 根据阶段和循环添加当前轮次要求
+    if (stage === 1) {
+      // 阶段1：核心骨架搭建期
+      if (cycle === 1) {
+        prompt += `
+=== 当前轮次：阶段 1（骨架搭建）第 ${cycle}/${CYCLE_CONFIG.stage1.cycles} 次循环 ===
+任务：粗定人设、主线、核心冲突，搭建整体故事框架。
+要求：给出清晰的人物设定，完整的主线故事脉络，核心冲突点。不需要展开写正文细节，只给框架骨架。
+`.trim();
+      } else if (cycle === 2) {
+        prompt += `
+=== 当前轮次：阶段 1（骨架搭建）第 ${cycle}/${CYCLE_CONFIG.stage1.cycles} 次循环 ===
+上一轮你已经给出了初步骨架：
+${previousResult}
+
+任务：修补逻辑漏洞，锁死核心脉络，防止后期情节漂移断裂。
+要求：检查人设逻辑是否自洽，主线是否有漏洞，修补矛盾，确认最终完整框架。
+`.trim();
+      }
+    } else if (stage === 2) {
+      // 阶段2：血肉细节填充期
+      // 获取最终骨架
+      const skeleton = cycleResults.find(r => r.stage === 1 && r.cycle === 2)?.result || previousResult;
+
+      if (cycle === 1) {
+        prompt += `
+=== 当前轮次：阶段 2（血肉填充）第 ${cycle}/${CYCLE_CONFIG.stage2.cycles} 次循环 ===
+最终锁定骨架框架：
+${skeleton}
+
+任务：添加开篇场景、人物对话、基础伏笔，把骨架填上血肉。
+要求：基于框架写出开篇正文，加入符合要求的场景描写，人物对话，埋下第一个伏笔。
+`.trim();
+      } else if (cycle === 2) {
+        prompt += `
+=== 当前轮次：阶段 2（血肉填充）第 ${cycle}/${CYCLE_CONFIG.stage2.cycles} 次循环 ===
+上一轮你已经写出开篇血肉：
+${previousResult}
+
+骨架框架：
+${skeleton}
+
+任务：补充更多细节，增加五感描写，埋设更多钩子伏笔，丰富支线情节。
+要求：扩展内容，增加感官细节，埋设更多伏笔，连接支线。输出完整正文。
+`.trim();
+      } else if (cycle === 3) {
+        prompt += `
+=== 当前轮次：阶段 2（血肉填充）第 ${cycle}/${CYCLE_CONFIG.stage2.cycles} 次循环 ===
+前两轮扩展的完整正文：
+${previousResult}
+
+骨架框架：
+${skeleton}
+
+任务：联动支线，消除情节割裂感，让整体流畅连贯。
+要求：把支线和主线深度绑定，消除割裂，保证所有情节都服务于主线，不要有无关内容。输出完整正文。
+`.trim();
+      }
+    } else if (stage === 3) {
+      // 阶段3：去AI化质感打磨期
+      // 获取阶段2最终全文
+      const fullText = cycleResults.find(r => r.stage === 2 && r.cycle === 3)?.result || previousResult;
+
+      if (cycle === 1) {
+        prompt += `
+=== 当前轮次：阶段 3（去AI打磨）第 ${cycle}/${CYCLE_CONFIG.stage3.cycles} 次循环 ===
+需要打磨的完整正文：
+${fullText}
+
+任务：删除模板化表达，加入生活化随机细节，洗掉机器感。
+要求：去掉AI常见模板句式，增加更多生活化小细节，调整节奏快慢，让文字更像真人写作。输出修改后的完整正文。
+`.trim();
+      } else if (cycle === 2) {
+        prompt += `
+=== 当前轮次：阶段 3（去AI打磨）第 ${cycle}/${CYCLE_CONFIG.stage3.cycles} 次循环 ===
+上一轮修改后的正文：
+${previousResult}
+
+任务：最终整体润色，强化情感共鸣，固定最终版本。
+要求：根据要求强化核心情绪落点，检查并回收伏笔，确保节奏松紧得当，输出最终成品全文。
+`.trim();
+      }
+    }
+
+    return prompt;
+  };
+
+  // 获取当前应该进行的阶段和循环
+  const getNextCycle = (completed: number): { stage: number; cycle: number } => {
+    if (completed < 2) {
+      return { stage: 1, cycle: completed + 1 };
+    } else if (completed < 5) {
+      return { stage: 2, cycle: completed - 2 + 1 };
+    } else {
+      return { stage: 3, cycle: completed - 5 + 1 };
+    }
+  };
+
+  // 一步步逐个循环生成（用户可以随时暂停继续）
+  const generateNextCycle = useCallback(async () => {
     const controller = new AbortController();
     abortControllerRef.current = controller;
+
+    const { completedCycles: completed, cycleResults: existingResults } = generation;
+
+    if (completed >= CYCLE_CONFIG.total) {
+      // 全部完成
+      return null;
+    }
 
     setGeneration({
       isGenerating: true,
-      isGeneratingStage: null,
       error: null,
-      currentStage: 1,
     });
 
     try {
-      // Stage 1: Generate outline and title
-      const stage1Prompt = `
-你是一个专业的内容策划师。请为${type === 'article' ? '一篇公众号文章' : '一部小说'}生成大纲和标题。
-主题：${topic}
-关键词：${keywords}
-要求字数：大约${wordCount}字
-风格要求：${style}
-
-请输出清晰的标题和详细的大纲结构。
-      `.trim();
-
-      const stage1Result = await callModel(stage1Prompt, config.stage1, controller.signal);
-      if (controller.signal.aborted) return;
-      setGeneration({ stage1Result, currentStage: 2 });
-
-      // Stage 2: Generate draft
-      const stage2Prompt = `
-基于以下大纲，生成完整的${type === 'article' ? '公众号文章' : '小说'}正文初稿。
-要求字数：大约${wordCount}字
-风格要求：${style}
-
-大纲内容：
-${stage1Result}
-
-请写出完整的正文内容。
-      `.trim();
-
-      const stage2Result = await callModel(stage2Prompt, config.stage2, controller.signal);
-      if (controller.signal.aborted) return;
-      setGeneration({ stage2Result, currentStage: 3 });
-
-      // Stage 3: Polish and optimize
-      const stage3Prompt = `
-请对以下${type === 'article' ? '公众号文章' : '小说'}正文进行润色、排版和合规检查，优化语言表达，让内容更流畅自然，符合发布要求。
-
-原文内容：
-${stage2Result}
-
-请输出最终优化后的完整内容。
-      `.trim();
-
-      const stage3Result = await callModel(stage3Prompt, config.stage3, controller.signal);
-      if (controller.signal.aborted) return;
-      setGeneration({ stage3Result, currentStage: 3, isGenerating: false, isGeneratingStage: null });
-
-      // Add to history
-      addToHistory({
-        id: Date.now().toString(),
-        type,
-        topic,
-        result: stage3Result,
-        createdAt: Date.now(),
-      });
-
-      return stage3Result;
-    } catch (error) {
-      if ((error as Error).message === '生成已终止') {
-        setGeneration({
-          isGenerating: false,
-          isGeneratingStage: null,
-          error: '生成已终止',
-        });
-        return;
-      }
+      const { stage, cycle } = getNextCycle(completed);
       setGeneration({
-        error: error instanceof Error ? error.message : '生成失败',
-        isGenerating: false,
-        isGeneratingStage: null,
+        currentStage: stage,
+        currentCycle: cycle,
       });
-      throw error;
-    } finally {
-      abortControllerRef.current = null;
-    }
-  }, [config, params, setGeneration, addToHistory]);
 
-  const regenerateStage = useCallback(async (stage: number) => {
-    const controller = new AbortController();
-    abortControllerRef.current = controller;
-
-    setGeneration({
-      isGenerating: false,
-      isGeneratingStage: stage,
-      error: null,
-    });
-
-    try {
-      if (stage === 1) {
-        // 重新生成阶段1：大纲
-        const stage1Prompt = `
-你是一个专业的内容策划师。请为${type === 'article' ? '一篇公众号文章' : '一部小说'}生成大纲和标题。
-主题：${topic}
-关键词：${keywords}
-要求字数：大约${wordCount}字
-风格要求：${style}
-
-请输出清晰的标题和详细的大纲结构。
-        `.trim();
-
-        const result = await callModel(stage1Prompt, config.stage1, controller.signal);
-        if (controller.signal.aborted) return;
-        setGeneration({
-          stage1Result: result,
-          currentStage: 1,
-          // 清空后续结果
-          stage2Result: '',
-          stage3Result: '',
-          isGenerating: false,
-          isGeneratingStage: null,
-        });
-        return result;
+      // 获取上一轮结果作为输入
+      let previousResult = '';
+      if (existingResults.length > 0) {
+        previousResult = existingResults[existingResults.length - 1].result;
       }
 
-      if (stage === 2) {
-        // 重新生成阶段2：基于当前阶段1结果生成初稿
-        const stage2Prompt = `
-基于以下大纲，生成完整的${type === 'article' ? '公众号文章' : '小说'}正文初稿。
-要求字数：大约${wordCount}字
-风格要求：${style}
+      const prompt = buildPrompt(stage, cycle, previousResult);
 
-大纲内容：
-${stage1Result}
+      // 根据阶段选择模型配置
+      let modelConfig: ModelConfig;
+      if (stage === 1) modelConfig = config.stage1;
+      else if (stage === 2) modelConfig = config.stage2;
+      else modelConfig = config.stage3;
 
-请写出完整的正文内容。
-        `.trim();
+      const result = await callModel(prompt, modelConfig, controller.signal);
 
-        const result = await callModel(stage2Prompt, config.stage2, controller.signal);
-        if (controller.signal.aborted) return;
-        setGeneration({
-          stage2Result: result,
-          currentStage: 2,
-          // 清空后续结果
-          stage3Result: '',
-          isGenerating: false,
-          isGeneratingStage: null,
-        });
-        return result;
+      if (controller.signal.aborted) {
+        return null;
       }
 
-      if (stage === 3) {
-        // 重新生成阶段3：基于当前阶段2结果润色
-        const stage3Prompt = `
-请对以下${type === 'article' ? '公众号文章' : '小说'}正文进行润色、排版和合规检查，优化语言表达，让内容更流畅自然，符合发布要求。
+      const newCompleted = completed + 1;
+      const newCycleResults = [
+        ...existingResults,
+        { stage, cycle, result },
+      ];
 
-原文内容：
-${stage2Result}
+      // 更新状态，保存各阶段结果
+      let update: any = {
+        cycleResults: newCycleResults,
+        completedCycles: newCompleted,
+        isGenerating: false,
+      };
 
-请输出最终优化后的完整内容。
-        `.trim();
+      if (stage === 1) update.stage1Result = result;
+      else if (stage === 2) update.stage2Result = result;
+      else if (stage === 3) update.stage3Result = result;
 
-        const result = await callModel(stage3Prompt, config.stage3, controller.signal);
-        if (controller.signal.aborted) return;
-        setGeneration({
-          stage3Result: result,
-          currentStage: 3,
-          isGenerating: false,
-          isGeneratingStage: null,
-        });
+      setGeneration(update);
 
-        // Add to history
+      // 如果全部完成，加入历史
+      if (newCompleted === CYCLE_CONFIG.total) {
         addToHistory({
           id: Date.now().toString(),
           type,
@@ -243,35 +351,126 @@ ${stage2Result}
           result,
           createdAt: Date.now(),
         });
-
-        return result;
       }
-    } catch (error) {
-      if ((error as Error).message === '生成已终止') {
+
+      return { stage, cycle, result };
+    } catch (error: any) {
+      if (!controller.signal.aborted) {
         setGeneration({
           isGenerating: false,
-          isGeneratingStage: null,
-          error: '生成已终止',
+          error: error.message,
         });
-        return;
       }
-      setGeneration({
-        error: error instanceof Error ? error.message : '生成失败',
-        isGenerating: false,
-        isGeneratingStage: null,
-      });
       throw error;
-    } finally {
-      abortControllerRef.current = null;
     }
-  }, [config, params, stage1Result, stage2Result, setGeneration, addToHistory]);
+  }, [config, params, generation, setGeneration, addToHistory]);
+
+  // 重新生成特定阶段特定循环
+  const regenerateStageCycle = useCallback(async (stage: number, cycle: number) => {
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
+    const { cycleResults: existingResults } = generation;
+
+    setGeneration({
+      isGenerating: true,
+      error: null,
+    });
+
+    try {
+      // 获取重新生成之前的结果作为输入
+      let previousResult = '';
+      const existingIndex = existingResults.findIndex(
+        r => r.stage === stage && r.cycle === cycle
+      );
+      if (existingIndex > 0) {
+        previousResult = existingResults[existingIndex - 1].result;
+      }
+
+      const prompt = buildPrompt(stage, cycle, previousResult);
+
+      let modelConfig: ModelConfig;
+      if (stage === 1) modelConfig = config.stage1;
+      else if (stage === 2) modelConfig = config.stage2;
+      else modelConfig = config.stage3;
+
+      const result = await callModel(prompt, modelConfig, controller.signal);
+
+      if (controller.signal.aborted) {
+        return null;
+      }
+
+      // 更新该循环结果
+      const newCycleResults = [...existingResults];
+      const targetIndex = newCycleResults.findIndex(
+        r => r.stage === stage && r.cycle === cycle
+      );
+      if (targetIndex >= 0) {
+        newCycleResults[targetIndex].result = result;
+      } else {
+        newCycleResults.push({ stage, cycle, result });
+      }
+
+      // 移除后面所有结果，因为重新生成后后续需要重新生成
+      const trimmedResults = newCycleResults.slice(
+        0,
+        targetIndex >= 0 ? targetIndex + 1 : newCycleResults.length
+      );
+
+      const completed = trimmedResults.length;
+
+      let update: any = {
+        cycleResults: trimmedResults,
+        completedCycles: completed,
+        isGenerating: false,
+      };
+
+      if (stage === 1) update.stage1Result = result;
+      else if (stage === 2) update.stage2Result = result;
+      else if (stage === 3) update.stage3Result = result;
+
+      setGeneration(update);
+
+      return { stage, cycle, result };
+    } catch (error: any) {
+      if (!controller.signal.aborted) {
+        setGeneration({
+          isGenerating: false,
+          error: error.message,
+        });
+      }
+      throw error;
+    }
+  }, [config, params, generation, setGeneration, addToHistory]);
 
   const stopGeneration = useCallback(() => {
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
-      abortControllerRef.current = null;
+      setGeneration({
+        isGenerating: false,
+      });
     }
-  }, []);
+  }, [setGeneration]);
 
-  return { runFullPipeline, regenerateStage, stopGeneration, generation };
+  const runAllCycles = useCallback(async () => {
+    // 自动运行所有剩余循环直到完成
+    while (generation.completedCycles < CYCLE_CONFIG.total && !generation.isGenerating) {
+      await generateNextCycle();
+    }
+  }, [generation.completedCycles, generation.isGenerating, generateNextCycle]);
+
+  return {
+    generateNextCycle,
+    regenerateStageCycle,
+    runAllCycles,
+    stopGeneration,
+    cycleConfig: CYCLE_CONFIG,
+    isComplete: generation.completedCycles >= CYCLE_CONFIG.total,
+    currentProgress: {
+      stage: generation.currentStage,
+      cycle: generation.currentCycle,
+      completed: generation.completedCycles,
+      total: CYCLE_CONFIG.total,
+    },
+  };
 };

@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { InputPanel } from './components/InputPanel';
-import { ProgressSteps } from './components/ProgressSteps';
+import { CycleProgress } from './components/CycleProgress';
 import { OutputPanels } from './components/OutputPanels';
 import { GenerateButton } from './components/GenerateButton';
 import { FinalOutput } from './components/FinalOutput';
@@ -12,20 +12,20 @@ import { PenTool } from 'lucide-react';
 
 function App() {
   const { generation } = useStore();
-  const { runFullPipeline } = useGeneration();
+  const { runAllCycles } = useGeneration();
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-        if (!generation.isGenerating && generation.isGeneratingStage === null) {
-          runFullPipeline();
+        if (!generation.isGenerating) {
+          runAllCycles();
         }
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [generation.isGenerating, generation.isGeneratingStage, runFullPipeline]);
+  }, [generation.isGenerating, runAllCycles]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-slate-100 py-6 sm:py-8 px-4 sm:px-6 lg:px-8">
@@ -36,11 +36,11 @@ function App() {
               <PenTool size={32} className="text-primary" />
             </div>
             <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-gray-900">
-              AI 内容创作三级流水线工具
+              AI 小说创作三阶段七循环系统
             </h1>
           </div>
           <p className="text-gray-600 text-base sm:text-lg">
-            三阶段流水线创作，从大纲到成品一步步生成 · 每个阶段支持单独重新生成 · ⌘/Ctrl + Enter 快速开始
+            黄金比例 2次骨架 + 3次血肉 + 2次打磨 · 逐步递进 · 解决AI感重/情节断裂/吸引力差三大问题 · ⌘/Ctrl + Enter 一键生成所有循环
           </p>
         </header>
 
@@ -49,7 +49,7 @@ function App() {
             <InputPanel />
           </div>
           <div className="lg:col-span-2">
-            <ProgressSteps generation={generation} />
+            <CycleProgress />
             <OutputPanels generation={generation} />
             <GenerateButton />
             <FinalOutput generation={generation} />
