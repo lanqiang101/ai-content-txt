@@ -14,7 +14,7 @@ interface RandomButtonProps {
 export const RandomButton: React.FC<RandomButtonProps> = ({
   fieldDescription,
   rules,
-  count = 3,
+  count = 10,
   onSelect,
   className = "",
 }) => {
@@ -154,7 +154,7 @@ export const RandomInspireButton: React.FC<RandomInspireButtonProps> = ({
   fieldDescription,
   rules,
   currentValue,
-  count = 3,
+  count = 10,
   onSelect,
   className = "",
 }) => {

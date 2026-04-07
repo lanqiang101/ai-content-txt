@@ -4,7 +4,9 @@ import { ModelConfig } from '../types';
 
 const callModel = async (prompt: string, config: ModelConfig, signal: AbortSignal): Promise<string> => {
   if (config.mode === 'local') {
-    const response = await fetch(`${config.localUrl}/api/generate`, {
+    // 确保 localUrl 没有尾随斜杠，然后拼接正确路径
+    const baseUrl = config.localUrl.replace(/\/$/, '');
+    const response = await fetch(`${baseUrl}/api/generate`, {
       method: 'POST',
       signal,
       headers: {

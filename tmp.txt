@@ -99,27 +99,18 @@ export const InputPanel: React.FC = () => {
 
         <div className="space-y-2">
           <div className="flex items-center justify-between mb-1">
-            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">期望字数（字）</label>
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">期望字数（字）短篇小说，最长100000</label>
           </div>
           <div className="relative">
             <input
               type="number"
               value={params.wordCount}
+              max=100000
               onChange={(e) => setParams({ wordCount: parseInt(e.target.value) })}
               className="w-full pl-4 pr-12 py-3 border border-gray-200 dark:border-slate-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all bg-white/80 dark:bg-slate-700/80 backdrop-blur text-gray-900 dark:text-gray-100"
               placeholder="期望生成多少字..."
             />
-            <div className="absolute right-2 top-1/2 -translate-y-1/2">
-              <RandomButton
-                fieldDescription="根据小说常见篇幅随机生成期望字数，要符合平台常规"
-                rules="只返回一个数字，不要单位"
-                count={1}
-                onSelect={(value) => {
-                  const num = parseInt(value.replace(/\D/g, ''));
-                  if (!isNaN(num)) setParams({ wordCount: num });
-                }}
-              />
-            </div>
+          
           </div>
         </div>
 

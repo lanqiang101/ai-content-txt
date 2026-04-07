@@ -216,7 +216,7 @@ export const useStore = create<AppState>()(
         return { darkMode: 'auto' };
       }),
 
-      resetGeneration: () => set({ generation: initialGeneration }),
+      resetGeneration: () => set({ generation: initialGeneration, params: initialParams }),
     }),
     {
       name: 'ai-content-txt-config',

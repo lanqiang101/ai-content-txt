@@ -15,7 +15,7 @@ export const useRandomGenerate = () => {
   const generateCandidates = useCallback(async (
     fieldDescription: string,
     rules: string,
-    count: number = 3
+    count: number = 10
   ): Promise<string[]> => {
     setLoading(true);
     try {
@@ -37,7 +37,9 @@ export const useRandomGenerate = () => {
       let result: string;
 
       if (modelConfig.mode === 'local') {
-        const response = await fetch(`${modelConfig.localUrl}/api/generate`, {
+        // 确保 localUrl 没有尾随斜杠，然后拼接正确路径
+        const baseUrl = modelConfig.localUrl.replace(/\/$/, '');
+        const response = await fetch(`${baseUrl}/api/generate`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

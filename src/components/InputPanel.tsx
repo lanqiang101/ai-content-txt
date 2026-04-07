@@ -7,6 +7,7 @@ import {
   RandomSelectButton,
   RandomInspireButton,
 } from "./RandomButton";
+import { KeywordGeneratorButton } from "./KeywordGeneratorButton";
 
 export const InputPanel: React.FC = () => {
   const { params, setParams, resetGeneration } = useStore();
@@ -79,7 +80,7 @@ export const InputPanel: React.FC = () => {
                 fieldDescription="热门网络小说主题"
                 rules="生成当前热门的小说主题，要求具体不笼统"
                 currentValue={params.topic}
-                count={3}
+                count={10}
                 onSelect={(value) => setParams({ topic: value })}
               />
             </div>
@@ -102,10 +103,10 @@ export const InputPanel: React.FC = () => {
             />
             <div className="absolute right-1 top-1/2 -translate-y-1/2 flex gap-1">
               <RandomInspireButton
-                fieldDescription="根据当前主题生成吸引人的小说标题"
-                rules="生成符合番茄小说平台爆款规范的标题，要求标题吸引人、符合当下热点、有钩子、能让读者有点击欲望，不要太长，生成3个"
+                fieldDescription={`根据当前主题生成吸引人的小说标题，当前小说主题是：${params.topic}`}
+                rules={`生成符合番茄小说平台爆款规范的标题，要求标题必须紧扣主题【${params.topic}】，必须包含和主题相关的元素，要求标题吸引人、符合当下热点、有钩子、能让读者有点击欲望，不要太长，生成10个`}
                 currentValue={params.title}
-                count={3}
+                count={10}
                 onSelect={(value) => setParams({ title: value })}
               />
             </div>
@@ -123,15 +124,15 @@ export const InputPanel: React.FC = () => {
               type="text"
               value={params.keywords}
               onChange={(e) => setParams({ keywords: e.target.value })}
-              className="w-full pl-4 pr-12 py-3 border border-gray-200 dark:border-slate-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all bg-white/80 dark:bg-slate-700/80 backdrop-blur text-gray-900 dark:text-gray-100"
+              className="w-full pl-4 pr-20 py-3 border border-gray-200 dark:border-slate-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all bg-white/80 dark:bg-slate-700/80 backdrop-blur text-gray-900 dark:text-gray-100"
               placeholder="AI, 未来科技, 都市异能..."
             />
-            <div className="absolute right-2 top-1/2 -translate-y-1/2">
-              <RandomButton
-                fieldDescription="根据主题生成3-5个小说关键词"
-                rules="关键词之间用逗号分隔"
-                count={1}
-                onSelect={(value) => setParams({ keywords: value })}
+            <div className="absolute right-1 top-1/2 -translate-y-1/2 flex gap-1">
+              <KeywordGeneratorButton
+                topic={params.topic}
+                title={params.title}
+                currentKeywords={params.keywords}
+                onSelect={(keywords) => setParams({ keywords })}
               />
             </div>
           </div>
@@ -140,7 +141,7 @@ export const InputPanel: React.FC = () => {
         <div className="space-y-2">
           <div className="flex items-center justify-between mb-1">
             <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-              期望字数（字）
+              期望字数（字）短篇小说最长100000
             </label>
           </div>
           <div className="relative">
@@ -155,7 +156,7 @@ export const InputPanel: React.FC = () => {
               className="w-full pl-4 pr-12 py-3 border border-gray-200 dark:border-slate-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all bg-white/80 dark:bg-slate-700/80 backdrop-blur text-gray-900 dark:text-gray-100"
               placeholder="期望生成多少字..."
             />
-            <div className="absolute right-2 top-1/2 -translate-y-1/2">
+            {/* <div className="absolute right-2 top-1/2 -translate-y-1/2">
               <RandomButton
                 fieldDescription="根据小说常见篇幅随机生成期望字数，要符合平台常规"
                 rules="只返回一个数字，不要单位"
@@ -165,7 +166,7 @@ export const InputPanel: React.FC = () => {
                   if (!isNaN(num)) setParams({ wordCount: num });
                 }}
               />
-            </div>
+            </div> */}
           </div>
         </div>
 
@@ -186,8 +187,8 @@ export const InputPanel: React.FC = () => {
             <div className="absolute right-2 top-1/2 -translate-y-1/2">
               <RandomButton
                 fieldDescription="整体文章文风形容词"
-                rules="生成3种不同文风，每种1-3个词"
-                count={3}
+                rules="生成10种不同文风，每种1-3个词"
+                count={10}
                 onSelect={(value) => setParams({ style: value })}
               />
             </div>
@@ -228,7 +229,7 @@ export const InputPanel: React.FC = () => {
                       <RandomButton
                         fieldDescription="常见网络小说读者年龄范围"
                         rules="常见年龄范围，比如 18-25岁"
-                        count={3}
+                        count={10}
                         onSelect={(value) =>
                           setParams({
                             reader: { ...params.reader, ageRange: value },
@@ -305,7 +306,7 @@ export const InputPanel: React.FC = () => {
                       <RandomButton
                         fieldDescription="读者读小说核心诉求"
                         rules="从爽点/泪点/悬疑感/治愈感/刀感/反转/脑洞 这些里面选或者组合"
-                        count={3}
+                        count={10}
                         onSelect={(value) =>
                           setParams({
                             reader: { ...params.reader, coreAppeal: value },
@@ -429,7 +430,7 @@ export const InputPanel: React.FC = () => {
                       <RandomButton
                         fieldDescription="人物核心性格缺陷"
                         rules="给出一个具体人物缺陷关键词"
-                        count={3}
+                        count={10}
                         onSelect={(value) =>
                           setParams({
                             character: { ...params.character, coreFlaw: value },
@@ -622,7 +623,7 @@ export const InputPanel: React.FC = () => {
                       <RandomButton
                         fieldDescription="开篇钩子建议字数"
                         rules="只返回一个数字，单位字"
-                        count={3}
+                        count={10}
                         onSelect={(value) => {
                           const num = parseInt(value.replace(/\D/g, ""));
                           if (!isNaN(num))
@@ -905,7 +906,7 @@ export const InputPanel: React.FC = () => {
                       <RandomButton
                         fieldDescription="五感官描写比例分配"
                         rules="比如：视觉60% + 听觉25% + 嗅觉10% + 触觉5%"
-                        count={3}
+                        count={10}
                         onSelect={(value) =>
                           setParams({
                             detail: { ...params.detail, senseRatio: value },
@@ -940,7 +941,7 @@ export const InputPanel: React.FC = () => {
                       <RandomButton
                         fieldDescription="小说故事发生的时代地域专属细节"
                         rules="给出具体时代地域特色细节，比如 90年代广州电子厂"
-                        count={3}
+                        count={10}
                         onSelect={(value) =>
                           setParams({
                             detail: {
@@ -1049,7 +1050,7 @@ export const InputPanel: React.FC = () => {
                       <RandomButton
                         fieldDescription="情感递进阶梯"
                         rules="读者情感递进路径，比如陌生→好奇→共情→动容"
-                        count={3}
+                        count={10}
                         onSelect={(value) =>
                           setParams({
                             emotion: {
@@ -1087,7 +1088,7 @@ export const InputPanel: React.FC = () => {
                       <RandomButton
                         fieldDescription="共情触发场景组合"
                         rules="从遗憾 / 意难平 / 救赎 / 团圆 / 逆袭 选1-3个组合"
-                        count={3}
+                        count={10}
                         onSelect={(value) =>
                           setParams({
                             emotion: {
@@ -1167,7 +1168,7 @@ export const InputPanel: React.FC = () => {
                       <RandomButton
                         fieldDescription="小说整体核心情绪落点"
                         rules="全文想让读者记住什么感觉"
-                        count={3}
+                        count={10}
                         onSelect={(value) =>
                           setParams({
                             emotion: { ...params.emotion, coreEmotion: value },
