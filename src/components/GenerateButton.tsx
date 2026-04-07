@@ -1,5 +1,5 @@
 import React from 'react';
-import { Play, Square, StepForward } from 'lucide-react';
+import { Play, Square, StepForward, AlertCircle, AlertTriangle } from 'lucide-react';
 import { useStore } from '../store/useStore';
 import { useGeneration } from '../hooks/useGeneration';
 
@@ -69,13 +69,15 @@ export const GenerateButton: React.FC = () => {
         </div>
       )}
       {error && error !== '生成已终止' && (
-        <div className="mt-3 p-4 bg-red-50 border border-red-200 rounded-xl text-red-600 text-sm">
-          {error}
+        <div className="mt-3 p-4 bg-red-50 border border-red-200 rounded-xl text-red-600 text-sm flex items-start gap-3">
+          <AlertCircle size={20} className="flex-shrink-0 mt-0.5" />
+          <span>{error}</span>
         </div>
       )}
       {error === '生成已终止' && (
-        <div className="mt-3 p-4 bg-yellow-50 border border-yellow-200 rounded-xl text-yellow-700 text-sm">
-          {error}
+        <div className="mt-3 p-4 bg-yellow-50 border border-yellow-200 rounded-xl text-yellow-700 text-sm flex items-start gap-3">
+          <AlertTriangle size={20} className="flex-shrink-0 mt-0.5" />
+          <span>{error}</span>
         </div>
       )}
     </div>

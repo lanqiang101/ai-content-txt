@@ -28,8 +28,26 @@ const callModel = async (prompt: string, config: ModelConfig, signal: AbortSigna
     const data = await response.json();
     return data.response;
   } else {
+    // Ensure the API URL is absolute - if it starts with /, it's a local proxy path (Vite dev proxy)
+    let apiUrl = config.apiUrl;
+    if (apiUrl.startsWith('/')) {
+      // For local dev proxy, keep it as relative path so it works correctly
+      // Don't convert to https://... because that breaks the proxy
+      // Only handle special case if it's /api/v3/ but not /api/coding/v3/
+    } else if (!apiUrl.startsWith('http')) {
+      apiUrl = `https://${apiUrl}`;
+    }
+
+    // Only auto-add /chat/completions if user hasn't provided it explicitly
+    const isArkBaseUrl = apiUrl.includes('ark.cn-beijing.volces.com') || apiUrl.startsWith('/api/coding/v3');
+    if (isArkBaseUrl && !apiUrl.endsWith('/chat/completions')) {
+      // If user only provided base URL, add the endpoint suffix
+      apiUrl = apiUrl.replace(/\/chat$/, '').replace(/\/inference$/, '');
+      apiUrl = apiUrl.replace(/\/$/, '') + '/chat/completions';
+    }
+
     // For Volcengine/Ark, model field is the endpoint ID
-    const response = await fetch(config.apiUrl, {
+    const response = await fetch(apiUrl, {
       method: 'POST',
       signal,
       headers: {

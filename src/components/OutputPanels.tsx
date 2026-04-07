@@ -51,29 +51,29 @@ const OutputPanel: React.FC<OutputPanelProps> = ({ title, content, stage, isLoad
   };
 
   return (
-    <div className="bg-white rounded-2xl shadow-lg card-gradient overflow-hidden mb-4 transition-all hover:shadow-xl">
-      <div className="flex items-center justify-between px-5 py-3 bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200/50">
-        <h3 className="font-semibold text-gray-800">{title}</h3>
+    <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg card-gradient overflow-hidden mb-4 transition-all hover:shadow-xl">
+      <div className="flex items-center justify-between px-5 py-3 bg-gradient-to-r from-gray-50 dark:from-slate-700 to-gray-100 dark:to-slate-600 border-b border-gray-200/50 dark:border-slate-600/50">
+        <h3 className="font-semibold text-gray-800 dark:text-gray-100">{title}</h3>
         <div className="flex gap-2">
           {content && !isGeneratingThis && (
             <>
               <button
                 onClick={handleRegenerate}
-                className="p-2 text-gray-600 hover:text-primary hover:bg-primary/10 rounded-lg transition-all"
+                className="p-2 text-gray-600 dark:text-gray-300 hover:text-primary hover:bg-primary/10 rounded-lg transition-all"
                 title="重新生成"
               >
                 <RefreshCw size={18} />
               </button>
               <button
                 onClick={handleCopy}
-                className="p-2 text-gray-600 hover:text-primary hover:bg-primary/10 rounded-lg transition-all"
+                className="p-2 text-gray-600 dark:text-gray-300 hover:text-primary hover:bg-primary/10 rounded-lg transition-all"
                 title="复制"
               >
                 {copied ? <Check size={18} /> : <Copy size={18} />}
               </button>
               <button
                 onClick={handleDownload}
-                className="p-2 text-gray-600 hover:text-primary hover:bg-primary/10 rounded-lg transition-all"
+                className="p-2 text-gray-600 dark:text-gray-300 hover:text-primary hover:bg-primary/10 rounded-lg transition-all"
                 title="导出TXT"
               >
                 <Download size={18} />
@@ -93,15 +93,15 @@ const OutputPanel: React.FC<OutputPanelProps> = ({ title, content, stage, isLoad
       </div>
       <div className="p-5 min-h-[180px] max-h-[400px] overflow-y-auto">
         {isGeneratingThis || (isLoading && content === '') ? (
-          <div className="flex items-center justify-center py-8 text-gray-400">
+          <div className="flex items-center justify-center py-8 text-gray-400 dark:text-gray-500">
             <div className="animate-pulse">生成中...</div>
           </div>
         ) : content ? (
-          <pre className="whitespace-pre-wrap font-sans text-gray-700 leading-relaxed m-0 bg-transparent p-0">
+          <pre className="whitespace-pre-wrap font-sans text-gray-700 dark:text-gray-300 leading-relaxed m-0 bg-transparent p-0">
             {content}
           </pre>
         ) : (
-          <div className="text-gray-400 text-center py-8">等待生成...</div>
+          <div className="text-gray-400 dark:text-gray-500 text-center py-8">等待生成...</div>
         )}
       </div>
     </div>

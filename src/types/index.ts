@@ -14,6 +14,7 @@ export interface PipelineConfig {
   stage1: ModelConfig;
   stage2: ModelConfig;
   stage3: ModelConfig;
+  random: ModelConfig; // 随机生成单独配置 - 借鉴Claude Code泄露源码模块化设计
 }
 
 // 新增：小说专业创作-读者定位参数
@@ -32,6 +33,10 @@ export interface CharacterConfig {
   habits: string;
   emotionThreshold: string;
   growthArc: string;
+  secretIntensity: number; // 隐藏秘密强度（0-100%）
+  goldenSentencePerThousand: number; // 金句密度（每一千字）
+  arcType: 'none' | 'positive' | 'fall' | 'complex'; // 人物弧光类型
+  supportingBackstory: boolean; // 给配角分配背景故事
 }
 
 // 新增：小说专业创作-情节连贯参数
@@ -41,6 +46,12 @@ export interface PlotConfig {
   branchRatio: number; // 0-100
   causalConstraint: boolean;
   checkReversal: boolean;
+  hookWordCount: number; // 开篇钩子字数
+  twistPerThousand: number; // 反转密度（千字几次）
+  structure: 'linear' | 'inverted' | 'interrupt' | 'multiline';
+  forceConflictAtStart: boolean;
+  seedForeshadow: boolean;
+  openEnding: boolean;
 }
 
 // 新增：小说专业创作-节奏张力参数
@@ -50,6 +61,7 @@ export interface RhythmConfig {
   chapterEndHook: boolean;
   conflictFrequency: number; // 0-100
   bufferNodes: boolean;
+  averageParaLength: 'short' | 'medium' | 'long'; // 平均段落长度
 }
 
 // 新增：小说专业创作-感官细节参数
@@ -81,6 +93,7 @@ export interface GenerationParams {
   // 基础参数保留
   type: ContentType;
   topic: string;
+  title: string;
   keywords: string;
   wordCount: number;
   style: string;

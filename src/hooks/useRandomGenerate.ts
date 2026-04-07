@@ -9,8 +9,8 @@ export const useRandomGenerate = () => {
   const { config } = useStore();
   const [loading, setLoading] = useState(false);
 
-  // 使用stage1模型来做随机生成，本来就是轻量模型正好
-  const modelConfig = config.stage1;
+  // 使用随机生成单独配置，借鉴Claude Code源码泄露模块化设计
+  const modelConfig = config.random;
 
   const generateCandidates = useCallback(async (
     fieldDescription: string,
@@ -59,7 +59,25 @@ export const useRandomGenerate = () => {
         const data = await response.json();
         result = data.response;
       } else {
-        const response = await fetch(modelConfig.apiUrl, {
+        // Ensure the API URL is absolute - if it starts with /, it's a local proxy path (Vite dev proxy)
+        let apiUrl = modelConfig.apiUrl;
+        if (apiUrl.startsWith('/')) {
+          // For local dev proxy, keep it as relative path so it works correctly
+          // Don't convert to https://... because that breaks the proxy
+          // Only handle special case if it's /api/v3/ but not /api/coding/v3/
+        } else if (!apiUrl.startsWith('http')) {
+          apiUrl = `https://${apiUrl}`;
+        }
+
+        // Only auto-add /chat/completions if user hasn't provided it explicitly
+        const isArkBaseUrl = apiUrl.includes('ark.cn-beijing.volces.com') || apiUrl.startsWith('/api/coding/v3');
+        if (isArkBaseUrl && !apiUrl.endsWith('/chat/completions')) {
+          // If user only provided base URL, add the endpoint suffix
+          apiUrl = apiUrl.replace(/\/chat$/, '').replace(/\/inference$/, '');
+          apiUrl = apiUrl.replace(/\/$/, '') + '/chat/completions';
+        }
+
+        const response = await fetch(apiUrl, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

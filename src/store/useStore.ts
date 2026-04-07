@@ -1,9 +1,9 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { 
-  PipelineConfig, GenerationState, GenerationParams, ContentHistory, 
-  ModelConfig, ReaderConfig, CharacterConfig, PlotConfig, 
-  RhythmConfig, DetailConfig, EmotionConfig, AntiAIConfig 
+import {
+  PipelineConfig, GenerationState, GenerationParams, ContentHistory,
+  ModelConfig, ReaderConfig, CharacterConfig, PlotConfig,
+  RhythmConfig, DetailConfig, EmotionConfig, AntiAIConfig
 } from '../types';
 
 interface AppState {
@@ -13,7 +13,8 @@ interface AppState {
   history: ContentHistory[];
   configOpen: boolean;
   historyOpen: boolean;
-  
+  darkMode: boolean | 'auto';
+
   setConfig: (config: Partial<PipelineConfig>) => void;
   setParams: (params: Partial<GenerationParams>) => void;
   setGeneration: (generation: Partial<GenerationState>) => void;
@@ -23,13 +24,23 @@ interface AppState {
   loadFromHistory: (item: ContentHistory) => void;
   toggleConfig: () => void;
   toggleHistory: () => void;
+  toggleDarkMode: () => void;
   resetGeneration: () => void;
 }
+
+// In development, use Vite proxy to avoid CORS issues
+// In production, users can set the full URL if they host the static files behind a proxy
+const isDev = import.meta.env.DEV;
+// According to the documentation, the base URL is https://ark.cn-beijing.volces.com/api/coding/v3
+// And the full endpoint is /chat/completions for OpenAI compatible API
+const defaultApiUrl = isDev
+  ? '/api/coding/v3'  // Vite proxy will forward to https://ark.cn-beijing.volces.com/api/coding/v3
+  : 'https://ark.cn-beijing.volces.com/api/coding/v3';
 
 const defaultStageConfig: (defaultModel: string) => ModelConfig = (defaultModel) => ({
   mode: 'local',
   localUrl: 'http://localhost:11434',
-  apiUrl: '/api/v3/chat/completions',
+  apiUrl: defaultApiUrl,
   modelName: defaultModel,
   apiKey: '',
 });
@@ -48,6 +59,10 @@ const defaultCharacterConfig: CharacterConfig = {
   habits: '',
   emotionThreshold: '',
   growthArc: '',
+  secretIntensity: 50,
+  goldenSentencePerThousand: 2,
+  arcType: 'none',
+  supportingBackstory: false,
 };
 
 const defaultPlotConfig: PlotConfig = {
@@ -56,6 +71,12 @@ const defaultPlotConfig: PlotConfig = {
   branchRatio: 30,
   causalConstraint: true,
   checkReversal: true,
+  hookWordCount: 500,
+  twistPerThousand: 1,
+  structure: 'linear',
+  forceConflictAtStart: true,
+  seedForeshadow: true,
+  openEnding: false,
 };
 
 const defaultRhythmConfig: RhythmConfig = {
@@ -64,6 +85,7 @@ const defaultRhythmConfig: RhythmConfig = {
   chapterEndHook: true,
   conflictFrequency: 50,
   bufferNodes: true,
+  averageParaLength: 'short',
 };
 
 const defaultDetailConfig: DetailConfig = {
@@ -89,21 +111,28 @@ const defaultAntiAIConfig: AntiAIConfig = {
 };
 
 const initialConfig: PipelineConfig = {
-  stage1: defaultStageConfig('qwen2:0.5b'),
-  stage2: defaultStageConfig('qwen2:7b'),
-  stage3: {
-    ...defaultStageConfig(''),
+  stage1: {
+    ...defaultStageConfig('qwen2.5:7b'),
     mode: 'api',
   },
+  stage2: {
+    ...defaultStageConfig('qwen2.5:7b'),
+    mode: 'api',
+  },
+  stage3: {
+    ...defaultStageConfig('qwen2.5:7b'),
+    mode: 'api',
+  },
+  random: defaultStageConfig('qwen2.5:7b'),
 };
 
 const initialParams: GenerationParams = {
   type: 'novel',
   topic: '',
+  title: '',
   keywords: '',
   wordCount: 1500,
   style: '',
-  // 新增七大参数默认值
   reader: defaultReaderConfig,
   character: defaultCharacterConfig,
   plot: defaultPlotConfig,
@@ -135,6 +164,7 @@ export const useStore = create<AppState>()(
       history: [],
       configOpen: false,
       historyOpen: false,
+      darkMode: 'auto',
 
       setConfig: (newConfig) =>
         set((state) => ({
@@ -180,11 +210,35 @@ export const useStore = create<AppState>()(
 
       toggleConfig: () => set((state) => ({ configOpen: !state.configOpen })),
       toggleHistory: () => set((state) => ({ historyOpen: !state.historyOpen })),
+      toggleDarkMode: () => set((state) => {
+        if (state.darkMode === 'auto') return { darkMode: false };
+        if (state.darkMode === false) return { darkMode: true };
+        return { darkMode: 'auto' };
+      }),
 
       resetGeneration: () => set({ generation: initialGeneration }),
     }),
     {
       name: 'ai-content-txt-config',
+      // In development, always force proxy URL to avoid CORS issues
+      onRehydrateStorage: () => (state) => {
+        if (isDev && state) {
+          // Force all apiUrl to use proxy in development
+          const forceProxy = (config: ModelConfig): ModelConfig => {
+            if (config.apiUrl.includes('ark.cn-beijing.volces.com')) {
+              return { ...config, apiUrl: '/api/coding/v3' };
+            }
+            return config;
+          };
+          state.config = {
+            ...state.config,
+            stage1: forceProxy(state.config.stage1),
+            stage2: forceProxy(state.config.stage2),
+            stage3: forceProxy(state.config.stage3),
+            random: forceProxy(state.config.random),
+          };
+        }
+      },
     }
   )
 );

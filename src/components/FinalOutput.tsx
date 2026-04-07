@@ -34,9 +34,9 @@ export const FinalOutput: React.FC<FinalOutputProps> = ({ generation }) => {
   };
 
   return (
-    <div className="bg-white rounded-2xl shadow-xl card-gradient overflow-hidden mb-6 border border-primary/10">
-      <div className="flex items-center justify-between flex-wrap gap-2 px-4 sm:px-6 py-4 bg-gradient-to-r from-primary/10 to-primary/5 border-b border-primary/10">
-        <h2 className="text-xl font-bold text-gray-800">最终成品</h2>
+    <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl card-gradient overflow-hidden mb-6 border border-primary/10">
+      <div className="flex items-center justify-between flex-wrap gap-2 px-4 sm:px-6 py-4 bg-gradient-to-r from-primary/10 dark:from-primary/5 to-primary/5 dark:to-primary/0 border-b border-primary/10">
+        <h2 className="text-xl font-bold text-gray-800 dark:text-gray-100">最终成品</h2>
         <div className="flex gap-2">
           <button
             onClick={handleCopy}
@@ -55,8 +55,8 @@ export const FinalOutput: React.FC<FinalOutputProps> = ({ generation }) => {
         </div>
       </div>
       <div className="p-4 sm:p-6 max-h-[600px] overflow-y-auto">
-        <div className="prose prose-gray max-w-none">
-          <pre className="whitespace-pre-wrap font-sans text-gray-700 leading-relaxed m-0 bg-transparent p-0 text-[15px]">
+        <div className="prose prose-gray dark:prose-invert max-w-none">
+          <pre className="whitespace-pre-wrap font-sans text-gray-700 dark:text-gray-300 leading-relaxed m-0 bg-transparent p-0 text-[15px]">
             {stage3Result}
           </pre>
         </div>
