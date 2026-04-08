@@ -140,7 +140,7 @@ export const useGeneration = () => {
   };
 
   // 构建完整prompt，根据当前阶段和循环注入参数
-  const buildPrompt = (stage: number, cycle: number, previousResult: string): string => {
+  const buildPrompt = (stage: number, cycle: number, previousResult: string, existingResults: Array<{ stage: number, cycle: number, result: string }>): string => {
     let prompt = '';
 
     // 基础信息 + 所有参数（always include for all stages/cycles）
@@ -222,8 +222,8 @@ ${previousResult}
       }
     } else if (stage === 2) {
       // 阶段2：血肉细节填充期
-      // 获取最终骨架
-      const skeleton = cycleResults.find(r => r.stage === 1 && r.cycle === 2)?.result || previousResult;
+      // 获取最终骨架 - use passed existingResults which is latest from getState()
+      const skeleton = existingResults.find(r => r.stage === 1 && r.cycle === 2)?.result || previousResult;
 
       if (cycle === 1) {
         prompt += `
@@ -231,8 +231,10 @@ ${previousResult}
 最终锁定骨架框架：
 ${skeleton}
 
+目标总字数：大约${wordCount}字，本轮请尽量充分展开，不要写得太短。
+
 任务：添加开篇场景、人物对话、基础伏笔，把骨架填上血肉。
-要求：基于框架写出开篇正文，加入符合要求的场景描写，人物对话，埋下第一个伏笔。
+要求：基于框架写出开篇正文，加入符合要求的场景描写，人物对话，埋下第一个伏笔。尽量写足内容，接近目标字数。
 `.trim();
       } else if (cycle === 2) {
         prompt += `
@@ -243,8 +245,10 @@ ${previousResult}
 骨架框架：
 ${skeleton}
 
+目标总字数：大约${wordCount}字，请继续扩展内容。
+
 任务：补充更多细节，增加五感描写，埋设更多钩子伏笔，丰富支线情节。
-要求：扩展内容，增加感官细节，埋设更多伏笔，连接支线。输出完整正文。
+要求：扩展内容，增加感官细节，埋设更多伏笔，连接支线。输出完整正文，尽量接近目标字数。
 `.trim();
       } else if (cycle === 3) {
         prompt += `
@@ -255,14 +259,16 @@ ${previousResult}
 骨架框架：
 ${skeleton}
 
-任务：联动支线，消除情节割裂感，让整体流畅连贯。
-要求：把支线和主线深度绑定，消除割裂，保证所有情节都服务于主线，不要有无关内容。输出完整正文。
+目标总字数：大约${wordCount}字，请补充完整达到目标字数。
+
+任务：联动支线，扩展情节，让内容充实达到目标字数。
+要求：把支线和主线深度绑定，补充足够内容达到大约${wordCount}字要求，消除割裂，保证所有情节都服务于主线。输出完整正文。
 `.trim();
       }
     } else if (stage === 3) {
       // 阶段3：去AI化质感打磨期
-      // 获取阶段2最终全文
-      const fullText = cycleResults.find(r => r.stage === 2 && r.cycle === 3)?.result || previousResult;
+      // 获取阶段2最终全文 - use passed existingResults which is latest from getState()
+      const fullText = existingResults.find(r => r.stage === 2 && r.cycle === 3)?.result || previousResult;
 
       if (cycle === 1) {
         prompt += `
@@ -290,12 +296,12 @@ ${previousResult}
 
   // 获取当前应该进行的阶段和循环
   const getNextCycle = (completed: number): { stage: number; cycle: number } => {
-    if (completed < 2) {
+    if (completed < CYCLE_CONFIG.stage1.cycles) {
       return { stage: 1, cycle: completed + 1 };
-    } else if (completed < 5) {
-      return { stage: 2, cycle: completed - 2 + 1 };
+    } else if (completed < CYCLE_CONFIG.stage1.cycles + CYCLE_CONFIG.stage2.cycles) {
+      return { stage: 2, cycle: completed - CYCLE_CONFIG.stage1.cycles + 1 };
     } else {
-      return { stage: 3, cycle: completed - 5 + 1 };
+      return { stage: 3, cycle: completed - (CYCLE_CONFIG.stage1.cycles + CYCLE_CONFIG.stage2.cycles) + 1 };
     }
   };
 
@@ -304,7 +310,8 @@ ${previousResult}
     const controller = new AbortController();
     abortControllerRef.current = controller;
 
-    const { completedCycles: completed, cycleResults: existingResults } = generation;
+    // Always get the latest state from store to avoid stale closure
+    const { completedCycles: completed, cycleResults: existingResults } = useStore.getState().generation;
 
     if (completed >= CYCLE_CONFIG.total) {
       // 全部完成
@@ -329,7 +336,7 @@ ${previousResult}
         previousResult = existingResults[existingResults.length - 1].result;
       }
 
-      const prompt = buildPrompt(stage, cycle, previousResult);
+      const prompt = buildPrompt(stage, cycle, previousResult, existingResults);
 
       // 根据阶段选择模型配置
       let modelConfig: ModelConfig;
@@ -383,7 +390,7 @@ ${previousResult}
       }
       throw error;
     }
-  }, [config, params, generation, setGeneration, addToHistory]);
+  }, [config, params, generation.completedCycles, generation.cycleResults, setGeneration, addToHistory]);
 
   // 重新生成特定阶段特定循环
   const regenerateStageCycle = useCallback(async (stage: number, cycle: number) => {
@@ -407,7 +414,7 @@ ${previousResult}
         previousResult = existingResults[existingIndex - 1].result;
       }
 
-      const prompt = buildPrompt(stage, cycle, previousResult);
+      const prompt = buildPrompt(stage, cycle, previousResult, existingResults);
 
       let modelConfig: ModelConfig;
       if (stage === 1) modelConfig = config.stage1;
@@ -420,23 +427,8 @@ ${previousResult}
         return null;
       }
 
-      // 更新该循环结果
-      const newCycleResults = [...existingResults];
-      const targetIndex = newCycleResults.findIndex(
-        r => r.stage === stage && r.cycle === cycle
-      );
-      if (targetIndex >= 0) {
-        newCycleResults[targetIndex].result = result;
-      } else {
-        newCycleResults.push({ stage, cycle, result });
-      }
-
-      // 移除后面所有结果，因为重新生成后后续需要重新生成
-      const trimmedResults = newCycleResults.slice(
-        0,
-        targetIndex >= 0 ? targetIndex + 1 : newCycleResults.length
-      );
-
+      // Trim to the targetIndex + 1 to overwrite
+      const trimmedResults = [...existingResults.slice(0, existingIndex), { stage, cycle, result }];
       const completed = trimmedResults.length;
 
       let update: any = {
@@ -445,6 +437,7 @@ ${previousResult}
         isGenerating: false,
       };
 
+      // Always update the latest result for the stage
       if (stage === 1) update.stage1Result = result;
       else if (stage === 2) update.stage2Result = result;
       else if (stage === 3) update.stage3Result = result;
@@ -461,36 +454,45 @@ ${previousResult}
       }
       throw error;
     }
-  }, [config, params, generation, setGeneration, addToHistory]);
-
-  const stopGeneration = useCallback(() => {
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-      setGeneration({
-        isGenerating: false,
-      });
-    }
-  }, [setGeneration]);
+  }, [config, params, generation.cycleResults, setGeneration, addToHistory]);
 
   const runAllCycles = useCallback(async () => {
-    // 自动运行所有剩余循环直到完成
-    while (generation.completedCycles < CYCLE_CONFIG.total && !generation.isGenerating) {
+    while (true) {
+      // Get the latest state every iteration
+      const { completedCycles, isGenerating } = useStore.getState().generation;
+      if (completedCycles >= CYCLE_CONFIG.total || isGenerating) {
+        break;
+      }
       await generateNextCycle();
     }
-  }, [generation.completedCycles, generation.isGenerating, generateNextCycle]);
+  }, [generateNextCycle]);
+
+  const stopGeneration = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+      setGeneration({
+        isGenerating: false,
+        error: '生成已终止',
+      });
+    }
+  };
+
+  // 是否已全部完成
+  const isComplete = generation.completedCycles >= CYCLE_CONFIG.total;
+
+  // 当前进度信息
+  const currentProgress = {
+    completed: generation.completedCycles,
+    total: CYCLE_CONFIG.total,
+  };
 
   return {
     generateNextCycle,
     regenerateStageCycle,
     runAllCycles,
     stopGeneration,
-    cycleConfig: CYCLE_CONFIG,
-    isComplete: generation.completedCycles >= CYCLE_CONFIG.total,
-    currentProgress: {
-      stage: generation.currentStage,
-      cycle: generation.currentCycle,
-      completed: generation.completedCycles,
-      total: CYCLE_CONFIG.total,
-    },
+    isComplete,
+    currentProgress,
   };
 };

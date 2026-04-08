@@ -112,18 +112,18 @@ const defaultAntiAIConfig: AntiAIConfig = {
 
 const initialConfig: PipelineConfig = {
   stage1: {
-    ...defaultStageConfig('qwen2.5:7b'),
+    ...defaultStageConfig('qwen2:7b'),
     mode: 'api',
   },
   stage2: {
-    ...defaultStageConfig('qwen2.5:7b'),
+    ...defaultStageConfig('qwen2:7b'),
     mode: 'api',
   },
   stage3: {
-    ...defaultStageConfig('qwen2.5:7b'),
+    ...defaultStageConfig('qwen2:7b'),
     mode: 'api',
   },
-  random: defaultStageConfig('qwen2.5:7b'),
+  random: defaultStageConfig('qwen2:7b'),
 };
 
 const initialParams: GenerationParams = {
@@ -216,7 +216,7 @@ export const useStore = create<AppState>()(
         return { darkMode: 'auto' };
       }),
 
-      resetGeneration: () => set({ generation: initialGeneration, params: initialParams }),
+      resetGeneration: () => set({ generation: initialGeneration }),
     }),
     {
       name: 'ai-content-txt-config',
