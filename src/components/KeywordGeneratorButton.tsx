@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { Dice1, Loader2, X, Sparkles, Check } from "lucide-react";
 import { useRandomGenerate } from "../hooks/useRandomGenerate";
+import { Tooltip } from "./Tooltip";
 
 interface KeywordGeneratorButtonProps {
   topic: string;
@@ -122,46 +123,33 @@ export const KeywordGeneratorButton: React.FC<KeywordGeneratorButtonProps> = ({
       ref={containerRef}
     >
       {/* 重新生成按钮 */}
-      <button
-        onClick={() => handleGenerate(false)}
-        disabled={isLoading}
-        className="
-          flex items-center justify-center w-7 h-7 rounded-full
-          bg-gradient-to-br from-slate-500 to-slate-600
-          hover:from-slate-600 hover:to-slate-700
-          disabled:opacity-50 disabled:cursor-not-allowed
-          transition-all shadow-sm hover:shadow-md
-          text-white
-        "
-        title="重新生成关键词"
-      >
-        {isLoading ? (
-          <Loader2 size={14} className="animate-spin" />
-        ) : (
-          <Dice1 size={14} />
-        )}
-      </button>
+      <Tooltip content="重新生成关键词">
+        <button
+          onClick={() => handleGenerate(false)}
+          disabled={isLoading}
+          className="flex items-center justify-center w-7 h-7 rounded-full bg-gradient-to-br from-slate-500 to-slate-600 hover:from-slate-600 hover:to-slate-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm hover:shadow-md text-white"
+        >
+          {isLoading ? (
+            <Loader2 size={14} className="animate-spin" />
+          ) : (
+            <Dice1 size={14} />
+          )}
+        </button>
+      </Tooltip>
 
-      {/* 联想优化按钮 */}
-      <button
-        onClick={() => handleGenerate(true)}
-        disabled={isLoading || !hasExistingKeywords}
-        className="
-          flex items-center justify-center w-7 h-7 rounded-full
-          bg-gradient-to-br from-blue-500 to-purple-500
-          hover:from-blue-600 hover:to-purple-600
-          disabled:opacity-50 disabled:cursor-not-allowed
-          transition-all shadow-sm hover:shadow-md
-          text-white
-        "
-        title="基于已有关键词联想优化"
-      >
-        {isLoading ? (
-          <Loader2 size={14} className="animate-spin" />
-        ) : (
-          <Sparkles size={14} />
-        )}
-      </button>
+      <Tooltip content="基于已有关键词联想优化">
+        <button
+          onClick={() => handleGenerate(true)}
+          disabled={isLoading || !hasExistingKeywords}
+          className="flex items-center justify-center w-7 h-7 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm hover:shadow-md text-white"
+        >
+          {isLoading ? (
+            <Loader2 size={14} className="animate-spin" />
+          ) : (
+            <Sparkles size={14} />
+          )}
+        </button>
+      </Tooltip>
 
       {open &&
         keywords.length > 0 &&

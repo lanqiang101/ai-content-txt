@@ -1,6 +1,14 @@
 import { useCallback, useRef } from 'react';
 import { useStore } from '../store/useStore';
-import { ModelConfig } from '../types';
+import { ModelConfig, StageModelConfig, BookOutline, Chapter, ChapterOutline, StoryboardResult, StoryboardPrompt, StoryboardConfig } from '../types';
+
+const getActiveModel = (stageConfig: StageModelConfig | ModelConfig): ModelConfig => {
+  if ('models' in stageConfig) {
+    const active = stageConfig.models.find(m => m.id === stageConfig.activeModelId);
+    return active || stageConfig.models[0];
+  }
+  return stageConfig as ModelConfig;
+};
 
 const callModel = async (prompt: string, config: ModelConfig, signal: AbortSignal): Promise<string> => {
   if (config.mode === 'local') {
@@ -88,12 +96,11 @@ export const CYCLE_CONFIG = {
 };
 
 export const useGeneration = () => {
-  const { config, params, generation, setGeneration, addToHistory } = useStore();
+  const { config, params, generation, setGeneration, addToHistory, addWork } = useStore();
   const {
     type, topic, keywords, wordCount, style,
     reader, character, plot, rhythm, detail, emotion, antiAI
   } = params;
-  const { cycleResults } = generation;
   const abortControllerRef = useRef<AbortController | null>(null);
 
   // 工具函数
@@ -338,12 +345,12 @@ ${previousResult}
 
       const prompt = buildPrompt(stage, cycle, previousResult, existingResults);
 
-      // 根据阶段选择模型配置
-      let modelConfig: ModelConfig;
-      if (stage === 1) modelConfig = config.stage1;
-      else if (stage === 2) modelConfig = config.stage2;
-      else modelConfig = config.stage3;
-
+      const stageConfigMap = {
+        1: config.stage1,
+        2: config.stage2,
+        3: config.stage3,
+      };
+      const modelConfig = getActiveModel(stageConfigMap[stage as 1 | 2 | 3]);
       const result = await callModel(prompt, modelConfig, controller.signal);
 
       if (controller.signal.aborted) {
@@ -377,6 +384,21 @@ ${previousResult}
           topic,
           result,
           createdAt: Date.now(),
+        });
+        
+        const wordCount = result.length;
+        addWork({
+          id: 'work-' + Date.now(),
+          title: params.title || topic || '未命名作品',
+          topic: params.topic,
+          keywords: params.keywords,
+          type: params.type,
+          expectedWordCount: params.wordCount,
+          actualWordCount: wordCount,
+          chapterCount: 1,
+          status: 'completed',
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
         });
       }
 
@@ -417,9 +439,9 @@ ${previousResult}
       const prompt = buildPrompt(stage, cycle, previousResult, existingResults);
 
       let modelConfig: ModelConfig;
-      if (stage === 1) modelConfig = config.stage1;
-      else if (stage === 2) modelConfig = config.stage2;
-      else modelConfig = config.stage3;
+      if (stage === 1) modelConfig = getActiveModel(config.stage1);
+      else if (stage === 2) modelConfig = getActiveModel(config.stage2);
+      else modelConfig = getActiveModel(config.stage3);
 
       const result = await callModel(prompt, modelConfig, controller.signal);
 
@@ -487,6 +509,173 @@ ${previousResult}
     total: CYCLE_CONFIG.total,
   };
 
+  const generateBookOutline = useCallback(async (): Promise<BookOutline> => {
+    const prompt = `你现在是一位专业的小说大纲规划师。根据以下信息生成完整的全书大纲：
+
+【基础信息】
+主题：${topic}
+标题：${params.title}
+关键词：${keywords}
+目标总字数：${wordCount}字
+整体风格：${style || '默认'}
+
+【情节设定】
+${plot.mainChain ? `主线逻辑链：${plot.mainChain}` : ''}
+${plot.foreshadowing ? `伏笔设定：${plot.foreshadowing}` : ''}
+
+请根据目标总字数自动规划章节结构：
+1. 决定合适的章节数量（建议每章1500-3000字，章节数控制在5-30章之间）
+2. 每个章节的字数可以有差异化安排（开头和高潮章节可以更长）
+3. 为每个章节生成：章节标题（一句话）、章节摘要（100-200字）、目标字数
+
+请以JSON格式返回：
+{
+  "chapters": [
+    {
+      "chapterNumber": 1,
+      "title": "章节标题",
+      "summary": "章节摘要",
+      "targetWordCount": 2000
+    }
+  ],
+  "totalPlannedWords": 总字数数字
+}`;
+
+    const activeConfig = getActiveModel(config.stage1);
+    const result = await callModel(prompt, activeConfig, abortControllerRef.current?.signal || new AbortController().signal);
+    
+    const match = result.match(/\{[\s\S]*\}/);
+    if (match) {
+      const parsed = JSON.parse(match[0]);
+      return {
+        id: 'outline-' + Date.now(),
+        workId: '',
+        chapters: parsed.chapters || [],
+        createdAt: Date.now(),
+      };
+    }
+    
+    throw new Error('无法解析大纲响应');
+  }, [config, params, wordCount]);
+
+  const generateChapter = useCallback(async (chapterOutline: ChapterOutline, previousChapters: Chapter[]): Promise<Chapter> => {
+    setGeneration({
+      isGenerating: true,
+      currentStage: 1,
+      currentCycle: 0,
+    });
+
+    const contextInfo = previousChapters.length > 0 
+      ? `\n【前情提要】\n上一章结尾：${previousChapters[previousChapters.length - 1].content.slice(-500)}`
+      : '';
+
+    const chapterPrompt = `你现在是一位专业的小说创作AI，正在撰写《${params.title}》的第 ${chapterOutline.chapterNumber} 章。
+
+【章节信息】
+章节标题：${chapterOutline.title}
+章节摘要：${chapterOutline.summary}
+目标字数：${chapterOutline.targetWordCount}字${contextInfo}
+
+【基础设定】
+主题：${topic}
+关键词：${keywords}
+整体风格：${style || '默认'}
+
+【读者定位】
+- 年龄层：${reader.ageRange}
+- 核心追读诉求：${reader.coreAppeal}
+- 目标平台：${getPlatformName(reader.targetPlatform)}
+
+请根据以上设定，生成本章的完整内容。要求：
+1. 字数达到 ${chapterOutline.targetWordCount} 字左右
+2. 内容要与前后章节连贯
+3. 情节有起承转合
+4. 结尾要留有悬念，吸引读者继续阅读
+
+请直接输出本章内容，不要有其他格式。`;
+
+    const activeConfig = getActiveModel(config.stage3);
+    const result = await callModel(chapterPrompt, activeConfig, abortControllerRef.current?.signal || new AbortController().signal);
+
+    setGeneration({
+      isGenerating: false,
+      stage3Result: result,
+    });
+
+    return {
+      id: 'chapter-' + Date.now() + '-' + chapterOutline.chapterNumber,
+      workId: '',
+      chapterNumber: chapterOutline.chapterNumber,
+      title: chapterOutline.title,
+      summary: chapterOutline.summary,
+      content: result,
+      wordCount: result.length,
+      stageData: {
+        stage: 3,
+        input: params,
+        output: result,
+        cycleResults: [],
+      },
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    };
+  }, [config, params, setGeneration]);
+
+  const generateStoryboard = useCallback(async (
+    content: string,
+    config: Partial<StoryboardConfig>
+  ): Promise<StoryboardResult> => {
+    const prompt = `你是一个专业的AI视频分镜脚本生成器。根据以下小说内容生成分镜提示词。
+
+【小说内容】
+${content.slice(0, 3000)}
+
+【分镜配置】
+- 单集时长：${config.duration || 60}秒
+- 每集分镜数：${config.clipsPerEpisode || 6}
+- 分镜风格：${config.style || '写实'}
+- 基调：${config.tone || '紧张'}
+
+【主角描述】
+${config.mainCharacter?.description || '请从小说内容中提取主角形象'}
+
+请为每个分镜生成详细的提示词，包含：画面描述、运镜方式、光线、音效。
+
+请以JSON格式返回：
+{
+  "prompts": [
+    {
+      "clipNumber": 1,
+      "scene": "场景名称",
+      "visual": "画面描述（英文，适合AI视频生成）",
+      "duration": 10,
+      "camera": "运镜方式",
+      "audio": "音效建议",
+      "lighting": "光线"
+    }
+  ]
+}`;
+
+    const { config: storeConfig } = useStore.getState();
+    const activeConfig = getActiveModel(storeConfig.stage1);
+    const result = await callModel(prompt, activeConfig, new AbortController().signal);
+    
+    const match = result.match(/\{[\s\S]*\}/);
+    if (match) {
+      const parsed = JSON.parse(match[0]);
+      return {
+        id: 'sb-' + Date.now(),
+        workId: config.workId || '',
+        config: config as StoryboardConfig,
+        prompts: parsed.prompts || [],
+        totalDuration: (parsed.prompts || []).reduce((sum: number, p: StoryboardPrompt) => sum + (p.duration || 0), 0),
+        createdAt: Date.now(),
+      };
+    }
+    
+    throw new Error('无法解析分镜响应');
+  }, [callModel]);
+
   return {
     generateNextCycle,
     regenerateStageCycle,
@@ -494,5 +683,9 @@ ${previousResult}
     stopGeneration,
     isComplete,
     currentProgress,
+    generateBookOutline,
+    generateChapter,
+    callModel,
+    generateStoryboard,
   };
 };

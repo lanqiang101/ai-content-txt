@@ -3,7 +3,8 @@ import { persist } from 'zustand/middleware';
 import {
   PipelineConfig, GenerationState, GenerationParams, ContentHistory,
   ModelConfig, ReaderConfig, CharacterConfig, PlotConfig,
-  RhythmConfig, DetailConfig, EmotionConfig, AntiAIConfig
+  RhythmConfig, DetailConfig, EmotionConfig, AntiAIConfig,
+  Work, BookOutline, StoryboardResult
 } from '../types';
 
 interface AppState {
@@ -11,8 +12,13 @@ interface AppState {
   params: GenerationParams;
   generation: GenerationState;
   history: ContentHistory[];
+  works: Work[];
+  currentWorkId: string | null;
+  bookOutlines: BookOutline[];
+  storyboards: StoryboardResult[];
   configOpen: boolean;
   historyOpen: boolean;
+  worksOpen: boolean;
   darkMode: boolean | 'auto';
 
   setConfig: (config: Partial<PipelineConfig>) => void;
@@ -24,8 +30,16 @@ interface AppState {
   loadFromHistory: (item: ContentHistory) => void;
   toggleConfig: () => void;
   toggleHistory: () => void;
+  toggleWorks: () => void;
   toggleDarkMode: () => void;
   resetGeneration: () => void;
+  setWorks: (works: Work[]) => void;
+  addWork: (work: Work) => void;
+  updateWork: (id: string, updates: Partial<Work>) => void;
+  deleteWork: (id: string) => void;
+  setCurrentWork: (id: string | null) => void;
+  setBookOutline: (outline: BookOutline) => void;
+  addStoryboard: (result: StoryboardResult) => void;
 }
 
 // In development, use Vite proxy to avoid CORS issues
@@ -37,13 +51,24 @@ const defaultApiUrl = isDev
   ? '/api/coding/v3'  // Vite proxy will forward to https://ark.cn-beijing.volces.com/api/coding/v3
   : 'https://ark.cn-beijing.volces.com/api/coding/v3';
 
-const defaultStageConfig: (defaultModel: string) => ModelConfig = (defaultModel) => ({
+const defaultModelConfig: (defaultModel: string) => ModelConfig = (defaultModel) => ({
+  id: `model-${Date.now()}`,
+  name: defaultModel,
   mode: 'local',
   localUrl: 'http://localhost:11434',
   apiUrl: defaultApiUrl,
   modelName: defaultModel,
   apiKey: '',
+  enabled: true,
 });
+
+const defaultStageConfigWithActive = (defaultModel: string) => {
+  const model = defaultModelConfig(defaultModel);
+  return {
+    models: [model],
+    activeModelId: model.id,
+  };
+};
 
 const defaultReaderConfig: ReaderConfig = {
   ageRange: '18-25',
@@ -111,19 +136,10 @@ const defaultAntiAIConfig: AntiAIConfig = {
 };
 
 const initialConfig: PipelineConfig = {
-  stage1: {
-    ...defaultStageConfig('qwen2:7b'),
-    mode: 'api',
-  },
-  stage2: {
-    ...defaultStageConfig('qwen2:7b'),
-    mode: 'api',
-  },
-  stage3: {
-    ...defaultStageConfig('qwen2:7b'),
-    mode: 'api',
-  },
-  random: defaultStageConfig('qwen2:7b'),
+  stage1: defaultStageConfigWithActive('qwen2:7b'),
+  stage2: defaultStageConfigWithActive('qwen2:7b'),
+  stage3: defaultStageConfigWithActive('qwen2:7b'),
+  random: defaultModelConfig('qwen2:7b'),
 };
 
 const initialParams: GenerationParams = {
@@ -162,9 +178,14 @@ export const useStore = create<AppState>()(
       params: initialParams,
       generation: initialGeneration,
       history: [],
+      works: [],
+      currentWorkId: null,
+      bookOutlines: [],
+      storyboards: [],
       configOpen: false,
-      historyOpen: false,
-      darkMode: 'auto',
+    historyOpen: false,
+    worksOpen: false,
+    darkMode: 'auto',
 
       setConfig: (newConfig) =>
         set((state) => ({
@@ -210,6 +231,7 @@ export const useStore = create<AppState>()(
 
       toggleConfig: () => set((state) => ({ configOpen: !state.configOpen })),
       toggleHistory: () => set((state) => ({ historyOpen: !state.historyOpen })),
+      toggleWorks: () => set((state) => ({ worksOpen: !state.worksOpen })),
       toggleDarkMode: () => set((state) => {
         if (state.darkMode === 'auto') return { darkMode: false };
         if (state.darkMode === false) return { darkMode: true };
@@ -217,28 +239,29 @@ export const useStore = create<AppState>()(
       }),
 
       resetGeneration: () => set({ generation: initialGeneration }),
+      
+      setWorks: (works) => set({ works }),
+      addWork: (work) => set((state) => ({ works: [work, ...state.works] })),
+      updateWork: (id, updates) => set((state) => ({
+        works: state.works.map(w => w.id === id ? { ...w, ...updates } : w),
+      })),
+      deleteWork: (id) => set((state) => ({
+        works: state.works.filter(w => w.id !== id),
+      })),
+      setCurrentWork: (id) => set({ currentWorkId: id }),
+      
+      setBookOutline: (outline) => set((state) => ({
+        bookOutlines: state.bookOutlines.some(o => o.id === outline.id)
+          ? state.bookOutlines.map(o => o.id === outline.id ? outline : o)
+          : [...state.bookOutlines, outline],
+      })),
+      
+      addStoryboard: (result) => set((state) => ({
+        storyboards: [result, ...state.storyboards],
+      })),
     }),
     {
       name: 'ai-content-txt-config',
-      // In development, always force proxy URL to avoid CORS issues
-      onRehydrateStorage: () => (state) => {
-        if (isDev && state) {
-          // Force all apiUrl to use proxy in development
-          const forceProxy = (config: ModelConfig): ModelConfig => {
-            if (config.apiUrl.includes('ark.cn-beijing.volces.com')) {
-              return { ...config, apiUrl: '/api/coding/v3' };
-            }
-            return config;
-          };
-          state.config = {
-            ...state.config,
-            stage1: forceProxy(state.config.stage1),
-            stage2: forceProxy(state.config.stage2),
-            stage3: forceProxy(state.config.stage3),
-            random: forceProxy(state.config.random),
-          };
-        }
-      },
     }
   )
 );

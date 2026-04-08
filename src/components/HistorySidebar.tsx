@@ -2,6 +2,7 @@ import React from 'react';
 import { X, Trash2, History, FileText, BookOpen } from 'lucide-react';
 import { useStore } from '../store/useStore';
 import { ContentHistory } from '../types';
+import { Tooltip } from './Tooltip';
 
 interface HistoryItemProps {
   item: ContentHistory;
@@ -33,9 +34,10 @@ const HistoryItem: React.FC<HistoryItemProps> = ({ item, onLoad, onDelete }) => 
         <button
           onClick={onDelete}
           className="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-all"
-          title="删除"
         >
-          <Trash2 size={14} />
+          <Tooltip content="删除">
+            <Trash2 size={14} />
+          </Tooltip>
         </button>
       </div>
       <div
@@ -54,13 +56,14 @@ export const HistorySidebar: React.FC = () => {
 
   if (!historyOpen) {
     return (
-      <button
-        onClick={toggleHistory}
-        className="fixed bottom-20 right-6 bg-gray-800 hover:bg-gray-700 text-white rounded-full p-4 shadow-lg transition-all hover:shadow-xl z-50"
-        title="历史记录"
-      >
-        <History size={24} />
-      </button>
+      <Tooltip content="历史记录">
+        <button
+          onClick={toggleHistory}
+          className="fixed bottom-20 right-6 bg-gray-800 hover:bg-gray-700 text-white rounded-full p-4 shadow-lg transition-all hover:shadow-xl z-50"
+        >
+          <History size={24} />
+        </button>
+      </Tooltip>
     );
   }
 

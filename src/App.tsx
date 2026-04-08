@@ -6,9 +6,11 @@ import { GenerateButton } from './components/GenerateButton';
 import { FinalOutput } from './components/FinalOutput';
 import { ConfigPanel } from './components/ConfigPanel';
 import { HistorySidebar } from './components/HistorySidebar';
+import { WorksPanel } from './components/WorksPanel';
 import { useStore } from './store/useStore';
 import { useGeneration } from './hooks/useGeneration';
-import { PenTool, Moon, Sun, Monitor } from 'lucide-react';
+import { PenTool, Moon, Sun, Monitor, Sparkles } from 'lucide-react';
+import { Tooltip } from './components/Tooltip';
 
 function App() {
   const { generation, darkMode, toggleDarkMode } = useStore();
@@ -27,15 +29,12 @@ function App() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [generation.isGenerating, runAllCycles]);
 
-  // 处理暗黑模式
   useEffect(() => {
     const root = document.documentElement;
     if (darkMode === 'auto') {
-      // 跟随系统，CSS already handles this
       root.classList.remove('dark');
     } else if (darkMode) {
       root.classList.add('dark');
-      // Override CSS variables for explicit dark
       root.style.setProperty('--bg-gradient-from', '#0f172a');
       root.style.setProperty('--bg-gradient-to', '#020617');
       root.style.setProperty('--card-bg', '#1e293b');
@@ -66,48 +65,86 @@ function App() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-slate-100 py-6 sm:py-8 px-4 sm:px-6 lg:px-8 dark:from-slate-900 dark:to-slate-950 transition-colors duration-300">
-      <div className="max-w-7xl mx-auto">
-        <header className="mb-6 sm:mb-8 text-center">
-          <div className="flex items-center justify-center gap-3 mb-3">
-            <div className="p-3 bg-primary/10 rounded-full">
-              <PenTool size={32} className="text-primary" />
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-slate-100 dark:from-slate-900 dark:via-slate-900 dark:to-slate-950 transition-colors duration-500">
+      <div className="max-w-[1600px] mx-auto">
+        <header className="sticky top-0 z-40 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-b border-gray-200 dark:border-slate-700/50">
+          <div className="px-4 sm:px-6 lg:px-8">
+            <div className="flex items-center justify-between h-16">
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-gradient-to-br from-primary to-violet-500 rounded-xl flex items-center justify-center shadow-lg shadow-primary/25">
+                    <PenTool size={20} className="text-white" />
+                  </div>
+                  <div>
+                    <h1 className="text-lg font-bold text-gray-900 dark:text-white">
+                      AI 小说创作
+                    </h1>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 -mt-0.5">
+                      三阶段七循环系统
+                    </p>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="hidden md:flex items-center gap-2 px-4 py-1.5 bg-gray-100 dark:bg-slate-800 rounded-full">
+                <Sparkles size={14} className="text-primary" />
+                <span className="text-sm text-gray-600 dark:text-gray-300">
+                  ⌘/Ctrl + Enter 一键生成
+                </span>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Tooltip content={getDarkModeTooltip()}>
+                  <button
+                    onClick={toggleDarkMode}
+                    className="p-2.5 bg-gray-100 dark:bg-slate-800 hover:bg-gray-200 dark:hover:bg-slate-700 rounded-xl transition-all"
+                  >
+                    {getDarkModeIcon()}
+                  </button>
+                </Tooltip>
+              </div>
             </div>
-            <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-gray-900 dark:text-gray-100">
-              AI 小说创作三阶段七循环系统
-            </h1>
-            <button
-              onClick={toggleDarkMode}
-              className="ml-4 p-2 bg-white/80 dark:bg-slate-800/80 backdrop-blur border border-gray-200 dark:border-slate-700 rounded-full text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition-all"
-              title={getDarkModeTooltip()}
-            >
-              {getDarkModeIcon()}
-            </button>
           </div>
-          <p className="text-gray-600 dark:text-gray-400 text-base sm:text-lg max-w-3xl mx-auto">
-            黄金比例 2次骨架 + 3次血肉 + 2次打磨 · 逐步递进 · 解决AI感重/情节断裂/吸引力差三大问题 · ⌘/Ctrl + Enter 一键生成所有循环
-          </p>
         </header>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-1">
-            <InputPanel />
+        <main className="p-4 sm:px-6 lg:px-8 py-6">
+          <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
+            <div className="xl:col-span-1">
+              <div className="sticky top-24 space-y-4">
+                <InputPanel />
+              </div>
+            </div>
+            
+            <div className="xl:col-span-3 space-y-4">
+              <div className="bg-white dark:bg-slate-800/50 rounded-2xl shadow-sm border border-gray-200/50 dark:border-slate-700/50 p-4">
+                <CycleProgress />
+              </div>
+              
+              <OutputPanels generation={generation} />
+              
+              <div className="flex items-center justify-center gap-3">
+                <GenerateButton />
+              </div>
+              
+              <FinalOutput generation={generation} />
+            </div>
           </div>
-          <div className="lg:col-span-2">
-            <CycleProgress />
-            <OutputPanels generation={generation} />
-            <GenerateButton />
-            <FinalOutput generation={generation} />
+        </main>
+
+        <footer className="py-6 text-center text-gray-400 dark:text-gray-500 text-sm border-t border-gray-200 dark:border-slate-800/50">
+          <div className="flex items-center justify-center gap-2">
+            <span>纯本地前端</span>
+            <span className="w-1 h-1 bg-gray-300 dark:bg-gray-600 rounded-full" />
+            <span>支持 Ollama / 在线 API</span>
+            <span className="w-1 h-1 bg-gray-300 dark:bg-gray-600 rounded-full" />
+            <span>配置自动保存</span>
           </div>
-        </div>
-
-        <ConfigPanel />
-        <HistorySidebar />
-
-        <footer className="mt-10 sm:mt-12 text-center text-gray-500 dark:text-gray-400 text-sm">
-          <p>纯本地前端 · 支持 Ollama 本地模型 / 在线 API 自由切换 · 配置和历史自动保存</p>
         </footer>
       </div>
+
+      <ConfigPanel />
+      <HistorySidebar />
+      <WorksPanel />
     </div>
   );
 }

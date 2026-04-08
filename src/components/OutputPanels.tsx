@@ -3,6 +3,7 @@ import { Copy, Download, Check, RefreshCw, Square } from 'lucide-react';
 import { GenerationState } from '../types';
 import { useStore } from '../store/useStore';
 import { useGeneration } from '../hooks/useGeneration';
+import { Tooltip } from './Tooltip';
 
 interface OutputPanelProps {
   title: string;
@@ -57,37 +58,41 @@ const OutputPanel: React.FC<OutputPanelProps> = ({ title, content, stage, isLoad
         <div className="flex gap-2">
           {content && !isGeneratingThis && (
             <>
-              <button
-                onClick={handleRegenerate}
-                className="p-2 text-gray-600 dark:text-gray-300 hover:text-primary hover:bg-primary/10 rounded-lg transition-all"
-                title="重新生成"
-              >
-                <RefreshCw size={18} />
-              </button>
-              <button
-                onClick={handleCopy}
-                className="p-2 text-gray-600 dark:text-gray-300 hover:text-primary hover:bg-primary/10 rounded-lg transition-all"
-                title="复制"
-              >
-                {copied ? <Check size={18} /> : <Copy size={18} />}
-              </button>
-              <button
-                onClick={handleDownload}
-                className="p-2 text-gray-600 dark:text-gray-300 hover:text-primary hover:bg-primary/10 rounded-lg transition-all"
-                title="导出TXT"
-              >
-                <Download size={18} />
-              </button>
+              <Tooltip content="重新生成">
+                <button
+                  onClick={handleRegenerate}
+                  className="p-2 text-gray-600 dark:text-gray-300 hover:text-primary hover:bg-primary/10 rounded-lg transition-all"
+                >
+                  <RefreshCw size={18} />
+                </button>
+              </Tooltip>
+              <Tooltip content="复制">
+                <button
+                  onClick={handleCopy}
+                  className="p-2 text-gray-600 dark:text-gray-300 hover:text-primary hover:bg-primary/10 rounded-lg transition-all"
+                >
+                  {copied ? <Check size={18} /> : <Copy size={18} />}
+                </button>
+              </Tooltip>
+              <Tooltip content="导出TXT">
+                <button
+                  onClick={handleDownload}
+                  className="p-2 text-gray-600 dark:text-gray-300 hover:text-primary hover:bg-primary/10 rounded-lg transition-all"
+                >
+                  <Download size={18} />
+                </button>
+              </Tooltip>
             </>
           )}
           {isGeneratingThis && (
-            <button
-              onClick={handleStop}
-              className="p-2 text-white bg-red-500 hover:bg-red-600 rounded-lg transition-all"
-              title="终止生成"
-            >
-              <Square size={18} fill="currentColor" />
-            </button>
+            <Tooltip content="终止生成">
+              <button
+                onClick={handleStop}
+                className="p-2 text-white bg-red-500 hover:bg-red-600 rounded-lg transition-all"
+              >
+                <Square size={18} fill="currentColor" />
+              </button>
+            </Tooltip>
           )}
         </div>
       </div>

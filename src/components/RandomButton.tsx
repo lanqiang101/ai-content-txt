@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { Dice1, Loader2, X, Sparkles } from "lucide-react";
 import { useRandomGenerate } from "../hooks/useRandomGenerate";
+import { Tooltip } from "./Tooltip";
 
 interface RandomButtonProps {
   fieldDescription: string;
@@ -73,26 +74,20 @@ export const RandomButton: React.FC<RandomButtonProps> = ({
 
   return (
     <div className={`relative inline-block ${className}`}>
-      <button
-        ref={buttonRef}
-        onClick={handleClick}
-        disabled={loading}
-        className={`
-          flex items-center justify-center w-8 h-8 rounded-full
-          bg-gradient-to-br from-purple-500 to-pink-500
-          hover:from-purple-600 hover:to-pink-600
-          disabled:opacity-50 disabled:cursor-not-allowed
-          transition-all shadow-md hover:shadow-lg
-          text-white
-        `}
-        title="随机生成"
-      >
-        {loading ? (
-          <Loader2 size={16} className="animate-spin" />
-        ) : (
-          <Dice1 size={16} />
-        )}
-      </button>
+      <Tooltip content="随机生成">
+        <button
+          ref={buttonRef}
+          onClick={handleClick}
+          disabled={loading}
+          className="flex items-center justify-center w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-md hover:shadow-lg text-white"
+        >
+          {loading ? (
+            <Loader2 size={16} className="animate-spin" />
+          ) : (
+            <Dice1 size={16} />
+          )}
+        </button>
+      </Tooltip>
 
       {open &&
         candidates.length > 0 &&
@@ -231,47 +226,33 @@ export const RandomInspireButton: React.FC<RandomInspireButtonProps> = ({
       className={`relative inline-flex items-center gap-1 ${className}`}
       ref={containerRef}
     >
-      {/* 重新生成按钮 */}
-      <button
-        onClick={() => handleGenerate(false)}
-        disabled={isLoading}
-        className="
-          flex items-center justify-center w-7 h-7 rounded-full
-          bg-gradient-to-br from-slate-500 to-slate-600
-          hover:from-slate-600 hover:to-slate-700
-          disabled:opacity-50 disabled:cursor-not-allowed
-          transition-all shadow-sm hover:shadow-md
-          text-white
-        "
-        title="重新生成"
-      >
-        {isLoading ? (
-          <Loader2 size={14} className="animate-spin" />
-        ) : (
-          <Dice1 size={14} />
-        )}
-      </button>
+      <Tooltip content="重新生成">
+        <button
+          onClick={() => handleGenerate(false)}
+          disabled={isLoading}
+          className="flex items-center justify-center w-7 h-7 rounded-full bg-gradient-to-br from-slate-500 to-slate-600 hover:from-slate-600 hover:to-slate-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm hover:shadow-md text-white"
+        >
+          {isLoading ? (
+            <Loader2 size={14} className="animate-spin" />
+          ) : (
+            <Dice1 size={14} />
+          )}
+        </button>
+      </Tooltip>
 
-      {/* 联想优化按钮 */}
-      <button
-        onClick={() => handleGenerate(true)}
-        disabled={isLoading || !currentValue.trim()}
-        className="
-          flex items-center justify-center w-7 h-7 rounded-full
-          bg-gradient-to-br from-blue-500 to-purple-500
-          hover:from-blue-600 hover:to-purple-600
-          disabled:opacity-50 disabled:cursor-not-allowed
-          transition-all shadow-sm hover:shadow-md
-          text-white
-        "
-        title="基于当前内容联想优化"
-      >
+      <Tooltip content="基于当前内容联想优化">
+        <button
+          onClick={() => handleGenerate(true)}
+          disabled={isLoading || !currentValue.trim()}
+          className="flex items-center justify-center w-7 h-7 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm hover:shadow-md text-white"
+        >
         {isLoading ? (
           <Loader2 size={14} className="animate-spin" />
         ) : (
           <Sparkles size={14} />
         )}
       </button>
+      </Tooltip>
 
       {open &&
         candidates.length > 0 &&
@@ -380,19 +361,13 @@ export const RandomSelectButton: React.FC<RandomSelectButtonProps> = ({
   };
 
   return (
-    <button
-      onClick={handleClick}
-      className={`
-        flex items-center justify-center w-7 h-7 rounded-full
-        bg-gradient-to-br from-purple-500 to-pink-500
-        hover:from-purple-600 hover:to-pink-600
-        transition-all shadow-sm hover:shadow-md
-        text-white
-        ${className}
-      `}
-      title="随机选择"
-    >
-      <Dice1 size={14} />
-    </button>
+    <Tooltip content="随机选择">
+      <button
+        onClick={handleClick}
+        className={`flex items-center justify-center w-7 h-7 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 transition-all shadow-sm hover:shadow-md text-white ${className}`}
+      >
+        <Dice1 size={14} />
+      </button>
+    </Tooltip>
   );
 };

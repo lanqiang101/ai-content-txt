@@ -19,12 +19,6 @@ const STAGE_NAMES: Record<number, string> = {
   3: "去AI打磨",
 };
 
-const STAGE_BG_COLORS: Record<number, string> = {
-  1: "bg-blue-500",
-  2: "bg-green-500",
-  3: "bg-purple-500",
-};
-
 export const CycleProgress: React.FC = () => {
   const { generation } = useStore();
   const { completedCycles, currentStage, currentCycle } = generation;
