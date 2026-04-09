@@ -1,6 +1,6 @@
 export type ContentType = 'article' | 'novel';
 export type ModelMode = 'local' | 'api';
-export type WorkStatus = 'drafting' | 'completed' | 'archived';
+export type WorkStatus = 'drafting' | 'completed' | 'failed' | 'archived';
 export type StoryboardStyle = 'realistic' | 'anime' | 'ink' | '3d' | 'cartoon';
 
 export interface ModelConfig {
@@ -24,6 +24,7 @@ export interface PipelineConfig {
   stage2: StageModelConfig;
   stage3: StageModelConfig;
   random: ModelConfig;
+  storyboard: StageModelConfig;
 }
 
 export interface ReaderConfig {
@@ -161,6 +162,7 @@ export interface Work {
   status: WorkStatus;
   createdAt: number;
   updatedAt: number;
+  storyboardIds: string[];
 }
 
 export interface WorkFull extends Work {
@@ -192,7 +194,30 @@ export interface VideoSettings {
   aspectRatio: '16:9' | '9:16' | '1:1';
   fps: 24 | 30 | 60;
   format: 'mp4' | 'mov' | 'webm';
+  duration: number;
+  clipDuration: number;
+  clipsPerEpisode: number;
+  distributionChannel: DistributionChannel;
 }
+
+export type DistributionChannel = 
+  | '抖音' 
+  | '快手' 
+  | 'B站' 
+  | '视频号' 
+  | '小红书' 
+  | 'YouTube' 
+  | 'TikTok'
+  | '多平台';
+
+export type AnimeStyle = 
+  | 'anime'
+  | 'realistic'
+  | 'ink'
+  | '3d'
+  | 'cartoon'
+  | 'semi-realistic'
+  | 'cel-shaded';
 
 export interface CharacterDesc {
   name: string;

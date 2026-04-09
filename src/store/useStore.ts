@@ -7,6 +7,16 @@ import {
   Work, BookOutline, StoryboardResult
 } from '../types';
 
+interface TimerAutomation {
+  enabled: boolean;
+  bookCount: number;
+  minWordCount: number;
+  maxWordCount: number;
+  themes: string[];
+  intervalMinutes: number;
+  isRunning: boolean;
+}
+
 interface AppState {
   config: PipelineConfig;
   params: GenerationParams;
@@ -20,6 +30,7 @@ interface AppState {
   historyOpen: boolean;
   worksOpen: boolean;
   darkMode: boolean | 'auto';
+  timerAutomation: TimerAutomation;
 
   setConfig: (config: Partial<PipelineConfig>) => void;
   setParams: (params: Partial<GenerationParams>) => void;
@@ -40,6 +51,7 @@ interface AppState {
   setCurrentWork: (id: string | null) => void;
   setBookOutline: (outline: BookOutline) => void;
   addStoryboard: (result: StoryboardResult) => void;
+  setTimerAutomation: (automation: Partial<TimerAutomation>) => void;
 }
 
 // In development, use Vite proxy to avoid CORS issues
@@ -140,6 +152,7 @@ const initialConfig: PipelineConfig = {
   stage2: defaultStageConfigWithActive('qwen2:7b'),
   stage3: defaultStageConfigWithActive('qwen2:7b'),
   random: defaultModelConfig('qwen2:7b'),
+  storyboard: defaultStageConfigWithActive('qwen2:7b'),
 };
 
 const initialParams: GenerationParams = {
@@ -171,6 +184,16 @@ const initialGeneration: GenerationState = {
   error: null,
 };
 
+const initialTimerAutomation: TimerAutomation = {
+  enabled: false,
+  bookCount: 3,
+  minWordCount: 1000,
+  maxWordCount: 5000,
+  themes: [],
+  intervalMinutes: 30,
+  isRunning: false,
+};
+
 export const useStore = create<AppState>()(
   persist(
     (set, get) => ({
@@ -183,9 +206,10 @@ export const useStore = create<AppState>()(
       bookOutlines: [],
       storyboards: [],
       configOpen: false,
-    historyOpen: false,
-    worksOpen: false,
-    darkMode: 'auto',
+      historyOpen: false,
+      worksOpen: false,
+      darkMode: 'auto',
+      timerAutomation: initialTimerAutomation,
 
       setConfig: (newConfig) =>
         set((state) => ({
@@ -258,6 +282,10 @@ export const useStore = create<AppState>()(
       
       addStoryboard: (result) => set((state) => ({
         storyboards: [result, ...state.storyboards],
+      })),
+      
+      setTimerAutomation: (automation) => set((state) => ({
+        timerAutomation: { ...state.timerAutomation, ...automation },
       })),
     }),
     {

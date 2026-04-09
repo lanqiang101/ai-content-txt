@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Copy,
   Download,
@@ -9,6 +10,7 @@ import {
   Wand2,
   X,
   Loader2,
+  Clapperboard,
 } from "lucide-react";
 import { GenerationState } from "../types";
 import { useStore } from "../store/useStore";
@@ -19,13 +21,15 @@ interface FinalOutputProps {
 }
 
 export const FinalOutput: React.FC<FinalOutputProps> = ({ generation }) => {
+  const navigate = useNavigate();
   const [copied, setCopied] = useState(false);
   const [optimizeModalOpen, setOptimizeModalOpen] = useState(false);
   const [optimizeInstructions, setOptimizeInstructions] = useState("");
   const [isOptimizing, setIsOptimizing] = useState(false);
   const [optimizedResult, setOptimizedResult] = useState<string | null>(null);
-  const { params, resetGeneration } = useStore();
-  const { regenerateStageCycle, stopGeneration, runAllCycles, callModel } =
+  const [isGeneratingStoryboard, setIsGeneratingStoryboard] = useState(false);
+  const { params, resetGeneration, currentWorkId } = useStore();
+  const { regenerateStageCycle, stopGeneration, runAllCycles, callModel, generateStoryboard } =
     useGeneration();
   const { stage3Result, isGenerating } = generation;
 
@@ -105,6 +109,15 @@ ${optimizedResult || stage3Result}
     }
   };
 
+  const handleGenerateStoryboard = async () => {
+    const workId = currentWorkId || useStore.getState().works[0]?.id;
+    if (workId) {
+      navigate(`/storyboard?workId=${workId}`);
+    } else {
+      alert('请先生成作品');
+    }
+  };
+
   return (
     <>
       <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl card-gradient overflow-hidden mb-6 border border-primary/10">
@@ -148,6 +161,14 @@ ${optimizedResult || stage3Result}
                 >
                   <RefreshCw size={16} />
                   重生成
+                </button>
+                <button
+                  onClick={handleGenerateStoryboard}
+                  disabled={isGeneratingStoryboard}
+                  className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-pink-600 bg-pink-50 hover:bg-pink-100 rounded-lg transition-all disabled:opacity-50"
+                >
+                  {isGeneratingStoryboard ? <Loader2 size={16} className="animate-spin" /> : <Clapperboard size={16} />}
+                  {isGeneratingStoryboard ? '生成中...' : '生成视频分镜'}
                 </button>
               </>
             )}

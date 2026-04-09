@@ -7,6 +7,7 @@ import { FinalOutput } from './components/FinalOutput';
 import { ConfigPanel } from './components/ConfigPanel';
 import { HistorySidebar } from './components/HistorySidebar';
 import { WorksPanel } from './components/WorksPanel';
+import { TimerAutomation } from './components/TimerAutomation';
 import { useStore } from './store/useStore';
 import { useGeneration } from './hooks/useGeneration';
 import { PenTool, Moon, Sun, Monitor, Sparkles } from 'lucide-react';
@@ -112,6 +113,7 @@ function App() {
             <div className="xl:col-span-1">
               <div className="sticky top-24 space-y-4">
                 <InputPanel />
+                <TimerAutomation />
               </div>
             </div>
             

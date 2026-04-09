@@ -148,12 +148,13 @@ const StageConfigCard: React.FC<StageConfigCardProps> = ({
   onChange,
 }) => {
   const [expanded, setExpanded] = useState(true);
+  const safeStageConfig = stageConfig || { models: [], activeModelId: '' };
   const [editingModelId, setEditingModelId] = useState<string | null>(
-    stageConfig.activeModelId,
+    safeStageConfig.activeModelId,
   );
 
   const addModel = () => {
-    const models = stageConfig.models || [];
+    const models = safeStageConfig.models || [];
     const newModel: ModelConfig = {
       id: generateId(),
       name: `模型 ${models.length + 1}`,
@@ -165,7 +166,7 @@ const StageConfigCard: React.FC<StageConfigCardProps> = ({
       enabled: false,
     };
     onChange({
-      ...stageConfig,
+      ...safeStageConfig,
       models: [...models, newModel],
       activeModelId: newModel.id,
     });
@@ -174,15 +175,15 @@ const StageConfigCard: React.FC<StageConfigCardProps> = ({
   };
 
   const deleteModel = (modelId: string) => {
-    const models = stageConfig.models || [];
+    const models = safeStageConfig.models || [];
     if (models.length <= 1) return;
     const newModels = models.filter((m) => m.id !== modelId);
     const newActiveId =
-      stageConfig.activeModelId === modelId
+      safeStageConfig.activeModelId === modelId
         ? newModels[0].id
-        : stageConfig.activeModelId;
+        : safeStageConfig.activeModelId;
     onChange({
-      ...stageConfig,
+      ...safeStageConfig,
       models: newModels,
       activeModelId: newActiveId,
     });
@@ -193,19 +194,19 @@ const StageConfigCard: React.FC<StageConfigCardProps> = ({
 
   const setActiveModel = (modelId: string) => {
     onChange({
-      ...stageConfig,
+      ...safeStageConfig,
       activeModelId: modelId,
     });
     setEditingModelId(modelId);
   };
 
   const updateModel = (modelId: string, updates: Partial<ModelConfig>) => {
-    const models = stageConfig.models || [];
+    const models = safeStageConfig.models || [];
     const newModels = models.map((m) =>
       m.id === modelId ? { ...m, ...updates } : m,
     );
     onChange({
-      ...stageConfig,
+      ...safeStageConfig,
       models: newModels,
     });
   };
@@ -223,17 +224,17 @@ const StageConfigCard: React.FC<StageConfigCardProps> = ({
           </h3>
         </div>
         <span className="text-sm text-gray-500 dark:text-gray-400">
-          {(stageConfig.models || []).length} 个模型
+          {(safeStageConfig.models || []).length} 个模型
         </span>
       </div>
 
       {expanded && (
         <div className="px-5 pb-5">
-          {(stageConfig.models || []).map((model, index) => (
+          {(safeStageConfig.models || []).map((model, index) => (
             <div
               key={model.id}
               className={`mb-4 p-4 rounded-lg border-2 transition-all ${
-                stageConfig.activeModelId === model.id
+                safeStageConfig.activeModelId === model.id
                   ? "border-primary bg-primary/5"
                   : "border-gray-200 dark:border-slate-600"
               }`}
@@ -244,26 +245,26 @@ const StageConfigCard: React.FC<StageConfigCardProps> = ({
                     type="button"
                     onClick={() => setActiveModel(model.id)}
                     className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${
-                      stageConfig.activeModelId === model.id
+                      safeStageConfig.activeModelId === model.id
                         ? "border-primary bg-primary"
                         : "border-gray-300 dark:border-slate-600"
                     }`}
                   >
-                    {stageConfig.activeModelId === model.id && (
+                    {safeStageConfig.activeModelId === model.id && (
                       <Check size={12} className="text-white" />
                     )}
                   </button>
                   <span className="font-medium text-gray-800 dark:text-gray-100">
                     {model.name || `模型 ${index + 1}`}
                   </span>
-                  {stageConfig.activeModelId === model.id && (
+                  {safeStageConfig.activeModelId === model.id && (
                     <span className="text-xs text-primary font-medium">
                       启用中
                     </span>
                   )}
                 </div>
                 <div className="flex items-center gap-2">
-                  {(stageConfig.models || []).length > 1 && (
+                  {(safeStageConfig.models || []).length > 1 && (
                     <button
                       type="button"
                       onClick={() => deleteModel(model.id)}
@@ -443,6 +444,12 @@ export const ConfigPanel: React.FC = () => {
             title="阶段 3 - 最终打磨"
             stageConfig={config.stage3}
             onChange={(c) => setConfig({ stage3: c })}
+          />
+
+          <StageConfigCard
+            title="视频分镜生成"
+            stageConfig={config.storyboard}
+            onChange={(c) => setConfig({ storyboard: c })}
           />
 
           <RandomConfigCard />

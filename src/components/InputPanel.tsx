@@ -1,6 +1,6 @@
 import React from "react";
 import { useStore } from "../store/useStore";
-import { RefreshCw } from "lucide-react";
+import { RefreshCw, Search } from "lucide-react";
 import {
   RandomButton,
   RandomSliderButton,
@@ -8,6 +8,7 @@ import {
   RandomInspireButton,
 } from "./RandomButton";
 import { KeywordGeneratorButton } from "./KeywordGeneratorButton";
+import { HotTopicSearch } from "./HotTopicSearch";
 
 export const InputPanel: React.FC = () => {
   const { params, setParams, resetGeneration } = useStore();
@@ -84,6 +85,11 @@ export const InputPanel: React.FC = () => {
                 onSelect={(value) => setParams({ topic: value })}
               />
             </div>
+          </div>
+          <div className="mt-2">
+            <HotTopicSearch
+              onSelectTopic={(topic) => setParams({ topic })}
+            />
           </div>
         </div>
 

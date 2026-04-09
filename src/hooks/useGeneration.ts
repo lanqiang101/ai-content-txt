@@ -96,7 +96,7 @@ export const CYCLE_CONFIG = {
 };
 
 export const useGeneration = () => {
-  const { config, params, generation, setGeneration, addToHistory, addWork } = useStore();
+  const { config, params, generation, setGeneration, addToHistory, addWork, updateWork, setCurrentWork } = useStore();
   const {
     type, topic, keywords, wordCount, style,
     reader, character, plot, rhythm, detail, emotion, antiAI
@@ -312,6 +312,72 @@ ${previousResult}
     }
   };
 
+  // 检查内容是否完整，如果不完整则继续生成
+  const continueIfIncomplete = async (
+    currentResult: string,
+    stage: number,
+    cycle: number,
+    modelConfig: ModelConfig,
+    signal: AbortSignal,
+    existingResults: Array<{ stage: number; cycle: number; result: string }>
+  ): Promise<string> => {
+    const targetWordCount = params.wordCount;
+    const currentWordCount = currentResult.length;
+    const minAcceptableWords = Math.floor(targetWordCount * 0.8); // 80% of target
+    
+    // 阶段1（骨架）不需要检查字数，阶段2和阶段3需要
+    if (stage === 1) return currentResult;
+    if (currentWordCount >= minAcceptableWords) return currentResult;
+    
+    console.log(`内容不完整: ${currentWordCount}/${targetWordCount}字, 继续生成...`);
+    
+    // 获取骨架内容（阶段2需要）
+    const skeleton = existingResults.find(r => r.stage === 1 && r.cycle === 2)?.result || '';
+    // 获取阶段2完整内容（阶段3需要）
+    const stage2Content = existingResults.find(r => r.stage === 2)?.result || currentResult;
+    
+    let continuePrompt = '';
+    if (stage === 2) {
+      continuePrompt = `上一轮生成的内容字数不足，需要继续扩展。
+
+当前内容：
+${currentResult}
+
+骨架框架：
+${skeleton}
+
+目标总字数：大约${targetWordCount}字，当前仅有${currentWordCount}字，请继续扩展内容，补充更多细节、情节、对话，使内容达到目标字数的80%以上（约${minAcceptableWords}字）。
+
+要求：直接输出后续内容，不需要重复已有内容。`;
+    } else if (stage === 3) {
+      continuePrompt = `上一轮打磨后字数不足，需要继续完善。
+
+当前内容：
+${currentResult}
+
+目标总字数：大约${targetWordCount}字，当前仅有${currentWordCount}字，请补充内容达到目标字数的80%以上（约${minAcceptableWords}字）。
+
+要求：添加更多细节描写，丰富情感表达，确保内容充实。`;
+    }
+    
+    // 最多重试2次
+    let result = currentResult;
+    let retryCount = 0;
+    const maxRetries = 2;
+    
+    while (result.length < minAcceptableWords && retryCount < maxRetries && !signal.aborted) {
+      const continueResult = await callModel(continuePrompt, modelConfig, signal);
+      if (!continueResult || continueResult.length < 100) break;
+      
+      result = result + '\n\n' + continueResult;
+      retryCount++;
+      
+      console.log(`第${retryCount}次继续后字数: ${result.length}/${targetWordCount}字`);
+    }
+    
+    return result;
+  };
+
   // 一步步逐个循环生成（用户可以随时暂停继续）
   const generateNextCycle = useCallback(async () => {
     const controller = new AbortController();
@@ -321,8 +387,28 @@ ${previousResult}
     const { completedCycles: completed, cycleResults: existingResults } = useStore.getState().generation;
 
     if (completed >= CYCLE_CONFIG.total) {
-      // 全部完成
       return null;
+    }
+
+    let currentWorkId = useStore.getState().currentWorkId;
+    if (!currentWorkId && completed === 0) {
+      const workId = 'work-' + Date.now();
+      currentWorkId = workId;
+      useStore.getState().setCurrentWork(workId);
+      useStore.getState().addWork({
+        id: workId,
+        title: params.title || topic || '未命名作品',
+        topic: params.topic,
+        keywords: params.keywords,
+        type: params.type,
+        expectedWordCount: params.wordCount,
+        actualWordCount: 0,
+        chapterCount: 0,
+        status: 'drafting',
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        storyboardIds: [],
+      });
     }
 
     setGeneration({
@@ -351,11 +437,14 @@ ${previousResult}
         3: config.stage3,
       };
       const modelConfig = getActiveModel(stageConfigMap[stage as 1 | 2 | 3]);
-      const result = await callModel(prompt, modelConfig, controller.signal);
+      let result = await callModel(prompt, modelConfig, controller.signal);
 
       if (controller.signal.aborted) {
         return null;
       }
+
+      // 检查内容是否完整，如果不完整则继续生成
+      result = await continueIfIncomplete(result, stage, cycle, modelConfig, controller.signal, existingResults);
 
       const newCompleted = completed + 1;
       const newCycleResults = [
@@ -376,7 +465,6 @@ ${previousResult}
 
       setGeneration(update);
 
-      // 如果全部完成，加入历史
       if (newCompleted === CYCLE_CONFIG.total) {
         addToHistory({
           id: Date.now().toString(),
@@ -386,18 +474,13 @@ ${previousResult}
           createdAt: Date.now(),
         });
         
+        const workId = currentWorkId || 'work-' + Date.now();
         const wordCount = result.length;
-        addWork({
-          id: 'work-' + Date.now(),
-          title: params.title || topic || '未命名作品',
-          topic: params.topic,
-          keywords: params.keywords,
-          type: params.type,
-          expectedWordCount: params.wordCount,
+        
+        useStore.getState().updateWork(workId, {
           actualWordCount: wordCount,
           chapterCount: 1,
           status: 'completed',
-          createdAt: Date.now(),
           updatedAt: Date.now(),
         });
       }
@@ -409,6 +492,13 @@ ${previousResult}
           isGenerating: false,
           error: error.message,
         });
+        
+        if (currentWorkId) {
+          useStore.getState().updateWork(currentWorkId, {
+            status: 'failed',
+            updatedAt: Date.now(),
+          });
+        }
       }
       throw error;
     }
@@ -657,7 +747,7 @@ ${config.mainCharacter?.description || '请从小说内容中提取主角形象'
 }`;
 
     const { config: storeConfig } = useStore.getState();
-    const activeConfig = getActiveModel(storeConfig.stage1);
+    const activeConfig = getActiveModel(storeConfig.storyboard);
     const result = await callModel(prompt, activeConfig, new AbortController().signal);
     
     const match = result.match(/\{[\s\S]*\}/);
