@@ -163,6 +163,8 @@ export interface Work {
   createdAt: number;
   updatedAt: number;
   storyboardIds: string[];
+  content?: string;
+  generationParams?: GenerationParams;
 }
 
 export interface WorkFull extends Work {
@@ -220,11 +222,13 @@ export type AnimeStyle =
   | 'cel-shaded';
 
 export interface CharacterDesc {
+  id: string;
   name: string;
   description: string;
   appearance: string;
   personality: string;
   outfit: string;
+  role: 'main' | 'supporting';
 }
 
 export interface SceneDesc {
@@ -235,8 +239,37 @@ export interface SceneDesc {
   mood: string;
 }
 
+export interface Character {
+  id: string;
+  workId: string;
+  name: string;
+  description: string;
+  appearance: string;
+  personality: string;
+  outfit: string;
+  role: 'main' | 'supporting';
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface SceneDesc {
+  name: string;
+  description: string;
+  background: string;
+  lighting: string;
+  mood: string;
+}
+
+export interface GenerationParamsInfo {
+  title: string;
+  topic: string;
+  keywords: string;
+  params?: GenerationParams;
+}
+
 export interface StoryboardConfig {
   workId: string;
+  chapterNumber?: number;
   duration: number;
   clipsPerEpisode: number;
   clipDuration: number;
@@ -246,6 +279,8 @@ export interface StoryboardConfig {
   videoSettings: VideoSettings;
   style: StoryboardStyle;
   tone: string;
+  previousContent?: string;
+  globalInfo?: GenerationParamsInfo;
 }
 
 export interface StoryboardPrompt {

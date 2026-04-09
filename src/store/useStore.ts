@@ -4,7 +4,7 @@ import {
   PipelineConfig, GenerationState, GenerationParams, ContentHistory,
   ModelConfig, ReaderConfig, CharacterConfig, PlotConfig,
   RhythmConfig, DetailConfig, EmotionConfig, AntiAIConfig,
-  Work, BookOutline, StoryboardResult
+  Work, BookOutline, StoryboardResult, Character
 } from '../types';
 
 interface TimerAutomation {
@@ -26,6 +26,7 @@ interface AppState {
   currentWorkId: string | null;
   bookOutlines: BookOutline[];
   storyboards: StoryboardResult[];
+  characters: Character[];
   configOpen: boolean;
   historyOpen: boolean;
   worksOpen: boolean;
@@ -48,6 +49,9 @@ interface AppState {
   addWork: (work: Work) => void;
   updateWork: (id: string, updates: Partial<Work>) => void;
   deleteWork: (id: string) => void;
+  addCharacter: (character: Character) => void;
+  updateCharacter: (id: string, updates: Partial<Character>) => void;
+  deleteCharacter: (id: string) => void;
   setCurrentWork: (id: string | null) => void;
   setBookOutline: (outline: BookOutline) => void;
   addStoryboard: (result: StoryboardResult) => void;
@@ -66,9 +70,9 @@ const defaultApiUrl = isDev
 const defaultModelConfig: (defaultModel: string) => ModelConfig = (defaultModel) => ({
   id: `model-${Date.now()}`,
   name: defaultModel,
-  mode: 'local',
+  mode: 'api',
   localUrl: 'http://localhost:11434',
-  apiUrl: defaultApiUrl,
+  apiUrl: '/api/coding/v3',
   modelName: defaultModel,
   apiKey: '',
   enabled: true,
@@ -148,11 +152,11 @@ const defaultAntiAIConfig: AntiAIConfig = {
 };
 
 const initialConfig: PipelineConfig = {
-  stage1: defaultStageConfigWithActive('qwen2:7b'),
-  stage2: defaultStageConfigWithActive('qwen2:7b'),
-  stage3: defaultStageConfigWithActive('qwen2:7b'),
-  random: defaultModelConfig('qwen2:7b'),
-  storyboard: defaultStageConfigWithActive('qwen2:7b'),
+  stage1: defaultStageConfigWithActive('ep-20250210-xxxxx'),
+  stage2: defaultStageConfigWithActive('ep-20250210-xxxxx'),
+  stage3: defaultStageConfigWithActive('ep-20250210-xxxxx'),
+  random: defaultModelConfig('ep-20250210-xxxxx'),
+  storyboard: defaultStageConfigWithActive('ep-20250210-xxxxx'),
 };
 
 const initialParams: GenerationParams = {
@@ -205,6 +209,7 @@ export const useStore = create<AppState>()(
       currentWorkId: null,
       bookOutlines: [],
       storyboards: [],
+      characters: [],
       configOpen: false,
       historyOpen: false,
       worksOpen: false,
@@ -282,6 +287,18 @@ export const useStore = create<AppState>()(
       
       addStoryboard: (result) => set((state) => ({
         storyboards: [result, ...state.storyboards],
+      })),
+      
+      addCharacter: (character) => set((state) => ({
+        characters: [...state.characters, character],
+      })),
+      
+      updateCharacter: (id, updates) => set((state) => ({
+        characters: state.characters.map(c => c.id === id ? { ...c, ...updates } : c),
+      })),
+      
+      deleteCharacter: (id) => set((state) => ({
+        characters: state.characters.filter(c => c.id !== id),
       })),
       
       setTimerAutomation: (automation) => set((state) => ({

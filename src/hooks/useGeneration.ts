@@ -313,6 +313,7 @@ ${previousResult}
   };
 
   // 检查内容是否完整，如果不完整则继续生成
+  const { timerAutomation } = useStore.getState();
   const continueIfIncomplete = async (
     currentResult: string,
     stage: number,
@@ -322,14 +323,16 @@ ${previousResult}
     existingResults: Array<{ stage: number; cycle: number; result: string }>
   ): Promise<string> => {
     const targetWordCount = params.wordCount;
-    const currentWordCount = currentResult.length;
-    const minAcceptableWords = Math.floor(targetWordCount * 0.8); // 80% of target
+    // 使用timerAutomation的最小字数作为最低要求（批量生成时），否则使用80%目标字数
+    const minAcceptableWords = timerAutomation.enabled 
+      ? Math.max(timerAutomation.minWordCount, Math.floor(targetWordCount * 0.8))
+      : Math.floor(targetWordCount * 0.8);
     
     // 阶段1（骨架）不需要检查字数，阶段2和阶段3需要
     if (stage === 1) return currentResult;
-    if (currentWordCount >= minAcceptableWords) return currentResult;
+    if (currentResult.length >= minAcceptableWords) return currentResult;
     
-    console.log(`内容不完整: ${currentWordCount}/${targetWordCount}字, 继续生成...`);
+    console.log(`内容不完整: ${currentResult.length}/${targetWordCount}字, 继续生成...`);
     
     // 获取骨架内容（阶段2需要）
     const skeleton = existingResults.find(r => r.stage === 1 && r.cycle === 2)?.result || '';
@@ -465,24 +468,156 @@ ${currentResult}
 
       setGeneration(update);
 
-      if (newCompleted === CYCLE_CONFIG.total) {
-        addToHistory({
-          id: Date.now().toString(),
-          type,
-          topic,
-          result,
-          createdAt: Date.now(),
-        });
-        
-        const workId = currentWorkId || 'work-' + Date.now();
-        const wordCount = result.length;
-        
-        useStore.getState().updateWork(workId, {
-          actualWordCount: wordCount,
-          chapterCount: 1,
-          status: 'completed',
-          updatedAt: Date.now(),
-        });
+       if (newCompleted === CYCLE_CONFIG.total) {
+         addToHistory({
+           id: Date.now().toString(),
+           type,
+           topic,
+           result,
+           createdAt: Date.now(),
+         });
+         
+          const workId = currentWorkId || 'work-' + Date.now();
+          
+          // 检查故事是否完整完结，如果未完结自动补全
+          const isIncomplete = (content: string): boolean => {
+            // 检查是否有明显的未完结标记
+            const incompletePatterns = [
+              /\b(未完待续|to be continued|下一章)\b/i,
+              /欲知后事如何.*下回分解/i,
+            ];
+            
+            for (const pattern of incompletePatterns) {
+              if (pattern.test(content)) {
+                return false; // 这是故意留坑，不算不完整
+              }
+            }
+            
+            // 检查结尾是否明显被截断：句子不完整、没有结束标点
+            const trimmed = content.trim();
+            if (trimmed.length === 0) return true;
+            
+            const lastChar = trimmed.charAt(trimmed.length - 1);
+            // 如果最后一个字符不是结束标点，很可能被截断了
+            if (!['。', '！', '？', '…', '」', '】', '）', '!', '?', '.'].includes(lastChar)) {
+              return true;
+            }
+            
+            return false;
+          };
+          
+          // 如果内容不完整，尝试补全
+          if (isIncomplete(result) && stage === 3) {
+            try {
+              console.log('检测到内容未完结，正在自动补全...');
+              const completePrompt = `前面是小说内容，但是内容被截断了，故事没有写完，请你继续完成这个故事，给出结尾：
+
+${result}
+
+请直接输出续写内容，不需要重复已有内容。`;
+              const activeConfig = getActiveModel(config.stage3);
+              const completion = await callModel(completePrompt, activeConfig, controller.signal);
+              if (completion && completion.length > 50) {
+                result = result + '\n\n' + completion;
+                console.log('自动补全完成，增加了' + completion.length + '字');
+              }
+            } catch (error) {
+              console.error('自动补全失败，使用原有内容:', error);
+            }
+          }
+          
+          const wordCount = result.length;
+          
+          const detectChapterCount = (content: string): number => {
+            const patterns = [
+              /第[一二三四五六七八九十百千零\d]+章/g,
+              /第[一二三四五六七八九十百千零\d]+回/g,
+              /Chapter\s*\d+/gi,
+              /第[一二三四五六七八九十百千零\d]+节/g,
+              /^(楔子|序章|序言|尾声|后记|番外)/gm,
+            ];
+            
+            let maxCount = 1;
+            for (const pattern of patterns) {
+              const matches = content.match(pattern);
+              if (matches && matches.length > maxCount) {
+                maxCount = matches.length;
+              }
+            }
+            
+            if (maxCount === 1) {
+              const lines = content.split('\n').filter(line => line.trim().length > 0);
+              const estimatedByLines = Math.ceil(lines.length / 50);
+             if (estimatedByLines > 1) {
+               maxCount = estimatedByLines;
+             }
+           }
+           
+           return maxCount;
+         };
+         
+         const chapterCount = detectChapterCount(result);
+         
+         useStore.getState().updateWork(workId, {
+           actualWordCount: wordCount,
+           chapterCount: chapterCount,
+           status: 'completed',
+           updatedAt: Date.now(),
+           content: result,
+           generationParams: params,
+         });
+         
+         // 作品生成完成后，自动尝试提取主要角色
+         // 只提取1-3个主要角色，如果已有角色则不覆盖
+         setTimeout(async () => {
+           try {
+             const { characters: allChars, generateCandidates } = useStore.getState();
+             const existingCount = allChars.filter(c => c.workId === workId).length;
+             
+             if (existingCount === 0 && result.length > 100) {
+               // 截取前3000字足够识别主要角色
+               const contentSnippet = result.length > 3000 
+                 ? result.slice(0, 3000) + '\n...(内容已截断)'
+                 : result;
+               
+               const activeConfig = getActiveModel(config.random);
+               const prompt = `根据以下《${params.title}》的小说内容，提取主要角色信息：
+               
+${contentSnippet}
+
+请从上述小说内容中提取1-3个主要角色的描述，每个角色包含：名字、外貌特征、性格特点。格式：角色名:外貌-性格。每行一个角色。不要其他文字。`;
+               
+               const results = await generateCandidates(
+                 `分析小说《${params.title}》角色`,
+                 `请从上述小说内容中提取1-3个主要角色的描述，每个角色包含：名字、外貌特征、性格特点。格式：角色名:外貌-性格。每行一个角色。不要其他文字。`,
+                 3
+               );
+               
+               if (results.length > 0) {
+                 results.forEach((charInfo, idx) => {
+                   const [namePart, descPart] = charInfo.split(':');
+                   const [appearance, personality] = (descPart || '').split('-');
+                   const character = {
+                     id: 'char-auto-' + Date.now() + '-' + idx,
+                     workId: workId,
+                     name: namePart?.trim() || `角色${idx + 1}`,
+                     description: descPart?.trim() || '',
+                     appearance: appearance?.trim() || '',
+                     personality: personality?.trim() || '',
+                     outfit: '',
+                     role: idx === 0 ? 'main' : 'supporting',
+                     createdAt: Date.now(),
+                     updatedAt: Date.now(),
+                   };
+                   useStore.getState().addCharacter(character);
+                 });
+               }
+             }
+           } catch (error) {
+             console.error('Auto extract characters failed:', error);
+             // 自动提取失败不影响主流程，只打日志就行
+           }
+         }, 0);
       }
 
       return { stage, cycle, result };
@@ -599,8 +734,9 @@ ${currentResult}
     total: CYCLE_CONFIG.total,
   };
 
-  const generateBookOutline = useCallback(async (): Promise<BookOutline> => {
-    const prompt = `你现在是一位专业的小说大纲规划师。根据以下信息生成完整的全书大纲：
+   const generateBookOutline = useCallback(async (): Promise<BookOutline> => {
+     const currentWorkId = useStore.getState().currentWorkId;
+     const prompt = `你现在是一位专业的小说大纲规划师。根据以下信息生成完整的全书大纲：
 
 【基础信息】
 主题：${topic}
@@ -631,22 +767,33 @@ ${plot.foreshadowing ? `伏笔设定：${plot.foreshadowing}` : ''}
   "totalPlannedWords": 总字数数字
 }`;
 
-    const activeConfig = getActiveModel(config.stage1);
-    const result = await callModel(prompt, activeConfig, abortControllerRef.current?.signal || new AbortController().signal);
-    
-    const match = result.match(/\{[\s\S]*\}/);
-    if (match) {
-      const parsed = JSON.parse(match[0]);
-      return {
-        id: 'outline-' + Date.now(),
-        workId: '',
-        chapters: parsed.chapters || [],
-        createdAt: Date.now(),
-      };
-    }
-    
-    throw new Error('无法解析大纲响应');
-  }, [config, params, wordCount]);
+     const activeConfig = getActiveModel(config.stage1);
+     const result = await callModel(prompt, activeConfig, abortControllerRef.current?.signal || new AbortController().signal);
+     
+     const match = result.match(/\{[\s\S]*\}/);
+     if (match) {
+       const parsed = JSON.parse(match[0]);
+       const outline: BookOutline = {
+         id: 'outline-' + Date.now(),
+         workId: currentWorkId || '',
+         chapters: parsed.chapters || [],
+         createdAt: Date.now(),
+       };
+       // 自动保存大纲到 store，持久化存储
+       useStore.getState().setBookOutline(outline);
+       
+       // 如果有 currentWorkId，更新作品章节数预估
+       if (currentWorkId && parsed.chapters) {
+         useStore.getState().updateWork(currentWorkId, {
+           chapterCount: parsed.chapters.length,
+         });
+       }
+       
+       return outline;
+     }
+     
+     throw new Error('无法解析大纲响应');
+   }, [config, params, wordCount]);
 
   const generateChapter = useCallback(async (chapterOutline: ChapterOutline, previousChapters: Chapter[]): Promise<Chapter> => {
     setGeneration({
@@ -715,19 +862,64 @@ ${plot.foreshadowing ? `伏笔设定：${plot.foreshadowing}` : ''}
     content: string,
     config: Partial<StoryboardConfig>
   ): Promise<StoryboardResult> => {
+    const mainChar = config.mainCharacter;
+    const supportingChars = config.supportingCharacters || [];
+    const chapterNum = config.chapterNumber;
+    const globalInfo = config.globalInfo;
+    const previousContent = config.previousContent;
+    
+    const characterContext = `
+【主角信息】
+- 名字：${mainChar?.name || '主角'}
+- 描述：${mainChar?.description || '无'}
+- 外貌：${mainChar?.appearance || '无'}
+- 性格：${mainChar?.personality || '无'}
+- 服装：${mainChar?.outfit || '无'}
+
+【配角信息】
+${supportingChars.map((c, i) => `- 角色${i+1}：${c.name}，${c.description || '无'}`).join('\n')}`;
+
+    const globalContext = globalInfo ? `
+【作品全局信息】
+- 标题：${globalInfo.title}
+- 主题：${globalInfo.topic}
+- 关键词：${globalInfo.keywords}
+${globalInfo.params ? `
+- 作品类型：${globalInfo.params.type === 'novel' ? '小说' : '文章'}
+- 风格：${globalInfo.params.style || '默认'}
+` : ''}` : '';
+
+    const previousContext = previousContent && previousContent.trim() ? `
+【上一章内容摘要】
+${previousContent.slice(-500)}
+
+请根据以上内容，确保本章情节与上一章连贯衔接。` : '';
+
     const prompt = `你是一个专业的AI视频分镜脚本生成器。根据以下小说内容生成分镜提示词。
 
-【小说内容】
-${content.slice(0, 3000)}
+${globalContext}
 
-【分镜配置】
-- 单集时长：${config.duration || 60}秒
-- 每集分镜数：${config.clipsPerEpisode || 6}
-- 分镜风格：${config.style || '写实'}
-- 基调：${config.tone || '紧张'}
+【分镜目标】
+${chapterNum ? `选择章节：第${chapterNum}章` : '全书内容'}
+单集时长：${config.duration || 60}秒
+每集分镜数：${config.clipsPerEpisode || 6}
+分镜风格：${config.style || 'anime'}
+视频基调：${config.tone || '紧张'}
 
-【主角描述】
-${config.mainCharacter?.description || '请从小说内容中提取主角形象'}
+${characterContext}
+
+${previousContext}
+
+【小说${chapterNum ? '本章' : '全书'}内容】
+${content}
+
+【重要要求】
+1. **人物一致性**：所有分镜中主角的外貌、服装、发型必须严格保持一致，不能有任何变化
+2. **情节顺序**：严格按照小说情节发展顺序生成分镜，不能打乱顺序
+3. **情节连贯性**：相邻分镜之间要有清晰的逻辑连接和自然的画面过渡，形成完整叙事
+4. **故事完整性**：覆盖本章/全书完整情节，开头引入故事，结尾留下余韵
+${previousContent ? '5. **情节延续性**：本章第一个分镜必须自然延续上一章的结尾情节，不能和之前割裂\n' : ''}${previousContent ? '' : '5. '}6. **视觉化描述**：画面描述使用英文关键词，适合AI视频生成（如Midjourney、Runway等）
+7. **风格匹配**：严格按照【${config.style}】风格生成对应视觉描述
 
 请为每个分镜生成详细的提示词，包含：画面描述、运镜方式、光线、音效。
 
@@ -756,6 +948,7 @@ ${config.mainCharacter?.description || '请从小说内容中提取主角形象'
       return {
         id: 'sb-' + Date.now(),
         workId: config.workId || '',
+        chapterNumber: chapterNum,
         config: config as StoryboardConfig,
         prompts: parsed.prompts || [],
         totalDuration: (parsed.prompts || []).reduce((sum: number, p: StoryboardPrompt) => sum + (p.duration || 0), 0),
@@ -764,6 +957,20 @@ ${config.mainCharacter?.description || '请从小说内容中提取主角形象'
     }
     
     throw new Error('无法解析分镜响应');
+  }, [callModel]);
+
+  const generateCandidates = useCallback(async (
+    description: string,
+    rules: string,
+    count: number
+  ): Promise<string[]> => {
+    const prompt = `${description}\n\n要求：${rules}`;
+    const { config: storeConfig } = useStore.getState();
+    const activeConfig = getActiveModel(storeConfig.random);
+    const result = await callModel(prompt, activeConfig, new AbortController().signal);
+    
+    const lines = result.split('\n').filter(line => line.trim());
+    return lines.slice(0, count).map(line => line.replace(/^[-*\d.]+\s*/, '').trim());
   }, [callModel]);
 
   return {
@@ -777,5 +984,6 @@ ${config.mainCharacter?.description || '请从小说内容中提取主角形象'
     generateChapter,
     callModel,
     generateStoryboard,
+    generateCandidates,
   };
 };

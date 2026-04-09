@@ -32,12 +32,22 @@ export const InputPanel: React.FC = () => {
         </button>
       </div>
 
-      <div className="space-y-5">
-        {/* 基础参数 */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            内容类型
-          </label>
+       <div className="space-y-5">
+         {/* 热门主题推荐搜索 */}
+         <div className="bg-gradient-to-r from-orange-50 to-pink-50 dark:from-orange-900/20 dark:to-pink-900/20 rounded-xl p-4 border border-orange-100 dark:border-orange-800">
+           <label className="block text-sm font-medium text-gray-800 dark:text-gray-200 mb-2">
+             🔥 热门主题推荐（输入关键词获取2026年番茄热门推荐）
+           </label>
+           <HotTopicSearch 
+             onSelectTopic={(topic) => setParams({ topic })}
+           />
+         </div>
+         
+         {/* 基础参数 */}
+         <div>
+           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+             内容类型
+           </label>
           <div className="flex gap-3">
             <button
               className={`px-4 py-2 rounded-xl transition-all ${
@@ -76,22 +86,16 @@ export const InputPanel: React.FC = () => {
               className="w-full pl-4 pr-20 py-3 border border-gray-200 dark:border-slate-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all bg-white/80 dark:bg-slate-700/80 backdrop-blur text-gray-900 dark:text-gray-100"
               placeholder="请输入小说主题..."
             />
-            <div className="absolute right-1 top-1/2 -translate-y-1/2 flex gap-1">
-              <RandomInspireButton
-                fieldDescription="热门网络小说主题"
-                rules="生成当前热门的小说主题，要求具体不笼统"
-                currentValue={params.topic}
-                count={10}
-                onSelect={(value) => setParams({ topic: value })}
-              />
-            </div>
-          </div>
-          <div className="mt-2">
-            <HotTopicSearch
-              onSelectTopic={(topic) => setParams({ topic })}
-            />
-          </div>
-        </div>
+             <div className="absolute right-1 top-1/2 -translate-y-1/2 flex gap-1">
+               <RandomButton
+                 fieldDescription="2026年番茄小说平台热门主题"
+                 rules="生成5个2026年番茄热门小说主题，每个主题一行，符合当前热点，突出爽点"
+                 count={10}
+                 onSelect={(value) => setParams({ topic: value })}
+               />
+             </div>
+           </div>
+         </div>
 
         <div className="space-y-2">
           <div className="flex items-center justify-between mb-1">
@@ -107,15 +111,20 @@ export const InputPanel: React.FC = () => {
               className="w-full pl-4 pr-20 py-3 border border-gray-200 dark:border-slate-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all bg-white/80 dark:bg-slate-700/80 backdrop-blur text-gray-900 dark:text-gray-100"
               placeholder="吸引人的小说标题..."
             />
-            <div className="absolute right-1 top-1/2 -translate-y-1/2 flex gap-1">
-              <RandomInspireButton
-                fieldDescription={`根据当前主题生成吸引人的小说标题，当前小说主题是：${params.topic}`}
-                rules={`生成符合番茄小说平台爆款规范的标题，要求标题必须紧扣主题【${params.topic}】，必须包含和主题相关的元素，要求标题吸引人、符合当下热点、有钩子、能让读者有点击欲望，不要太长，生成10个`}
-                currentValue={params.title}
-                count={10}
-                onSelect={(value) => setParams({ title: value })}
-              />
-            </div>
+             <div className="absolute right-1 top-1/2 -translate-y-1/2 flex gap-1">
+               <RandomButton
+                 fieldDescription={`根据当前主题${params.topic}，生成爆款小说标题`}
+                 rules={`生成符合番茄小说平台爆款规范的标题，要求：
+1. 必须紧扣主题【${params.topic}】
+2. 必须包含和主题相关的元素
+3. 吸引人、符合当下热点、有钩子
+4. 能让读者有点击欲望
+5. 不要太长
+生成10个候选标题，每行一个。`}
+                 count={10}
+                 onSelect={(value) => setParams({ title: value })}
+               />
+             </div>
           </div>
         </div>
 

@@ -27,39 +27,49 @@ export const HotTopicSearch: React.FC<HotTopicSearchProps> = ({ onSelectTopic })
   const [showResults, setShowResults] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
 
-  const handleSearch = async () => {
-    if (loading) return;
+   const handleSearch = async () => {
+     if (loading) return;
 
-    try {
-      const searchResults = await generateCandidates(
-        `搜索热门小说话题/热点关键词：${searchQuery.trim() || '热门小说主题'}`,
-        `根据用户输入的关键词【${searchQuery.trim() || '热门小说主题'}】，搜索当前网络上的热门小说话题、热点事件、流行趋势。返回10个与小说创作相关的热门话题。要求：真实、有热度、适合改编成小说，格式要求简洁，每行一个主题。`,
-        10
-      );
-      setResults(searchResults);
-      setHasSearched(true);
-      setShowResults(true);
-    } catch (error) {
-      console.error("Hot topic search failed:", error);
-      alert("搜索失败: " + (error as Error).message);
-    }
-  };
+     try {
+       const userInput = searchQuery.trim();
+       const searchResults = await generateCandidates(
+         `根据用户创意推荐2026年番茄热门小说主题`,
+         `用户输入了一个关键词或创意方向：【${userInput || '热门小说'}】。
+请基于这个方向，推荐**5个**当前2026年番茄小说平台热度最高、读者最喜爱的热门小说主题。
+要求：
+1. 必须贴合2026年最新热点，真正符合当下读者喜好
+2. 不一定要把用户原话原封不动放进去，可以基于用户创意拓展出真正畅销热门主题
+3. 每个主题一句话，简洁清晰，突出核心卖点和爽点
+4. 必须是现在番茄读者愿意点击的热门题材
+
+请直接返回5个主题，每行一个主题，不要其他内容。`,
+         5
+       );
+       setResults(searchResults);
+       setHasSearched(true);
+       setShowResults(true);
+     } catch (error) {
+       console.error("Hot topic search failed:", error);
+       alert("搜索失败: " + (error as Error).message);
+     }
+   };
 
   const handleGetHotTopics = async () => {
     if (loading) return;
 
-    try {
-      const hotTopics = await generateCandidates(
-        "推荐当前热门的小说主题",
-        `搜索当前网络上最热门的10个小说话题、热点事件、流行趋势。这些主题应该是：
-1. 在番茄小说、起点中文网、晋江文学城等平台当前流行的
-2. 具有高点击率和高读者粘性的
-3. 适合改编成小说的热门题材
-4. 包含当下社会热点元素
+     try {
+       const hotTopics = await generateCandidates(
+         "推荐2026年番茄热门的小说主题",
+         `请推荐**5个**2026年番茄小说平台当前热度最高、读者最喜爱的热门小说主题。
+要求：
+1. 必须是2026年最新最畅销的热门题材
+2. 具有高点击率、高完读率、高读者粘性
+3. 符合当下读者喜好，突出爽点和钩子
+4. 每个主题简洁一句话，直接列出
 
-要求返回10个热门主题，每行一个，格式简洁明了。优先推荐：重生、系统、甜宠、职场、逆袭、悬疑、穿越等热门题材。`,
-        10
-      );
+要求直接返回5个热门主题，每行一个。`,
+         5
+       );
       setResults(hotTopics);
       setHasSearched(true);
       setShowResults(true);
