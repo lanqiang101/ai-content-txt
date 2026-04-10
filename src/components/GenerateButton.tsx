@@ -1,11 +1,23 @@
-import React from 'react';
-import { Play, Square, StepForward, AlertCircle, AlertTriangle } from 'lucide-react';
-import { useStore } from '../store/useStore';
-import { useGeneration } from '../hooks/useGeneration';
+import React from "react";
+import {
+  Play,
+  Square,
+  StepForward,
+  AlertCircle,
+  AlertTriangle,
+} from "lucide-react";
+import { useStore } from "../store/useStore";
+import { useGeneration } from "../hooks/useGeneration";
 
 export const GenerateButton: React.FC = () => {
   const { generation } = useStore();
-  const { generateNextCycle, runAllCycles, stopGeneration, isComplete, currentProgress } = useGeneration();
+  const {
+    generateNextCycle,
+    runAllCycles,
+    stopGeneration,
+    isComplete,
+    currentProgress,
+  } = useGeneration();
   const { error } = generation;
   const isProcessing = generation.isGenerating;
 
@@ -14,7 +26,7 @@ export const GenerateButton: React.FC = () => {
       await generateNextCycle();
     } catch (err) {
       // Error is already handled in the hook
-      console.error('Generation failed:', err);
+      console.error("Generation failed:", err);
     }
   };
 
@@ -22,7 +34,7 @@ export const GenerateButton: React.FC = () => {
     try {
       await runAllCycles();
     } catch (err) {
-      console.error('Generation failed:', err);
+      console.error("Generation failed:", err);
     }
   };
 
@@ -31,7 +43,7 @@ export const GenerateButton: React.FC = () => {
   };
 
   return (
-    <div className="mb-6 space-y-3">
+    <div className="mb-6 space-y-3 w-full">
       {isProcessing ? (
         <button
           onClick={handleStop}
@@ -41,8 +53,8 @@ export const GenerateButton: React.FC = () => {
           终止生成
         </button>
       ) : (
-        <div className="grid grid-cols-2 gap-3">
-          <button
+        <div className="grid  gap-3 ">
+          {/* <button
             onClick={handleNext}
             disabled={isProcessing || isComplete}
             className={`py-4 px-6 rounded-2xl flex items-center justify-center gap-2 text-lg font-semibold text-white transition-all ${
@@ -53,28 +65,29 @@ export const GenerateButton: React.FC = () => {
           >
             <StepForward size={22} fill="currentColor" />
             下一步 ({currentProgress.completed}/7)
-          </button>
+          </button> */}
           <button
             onClick={handleRunAll}
             disabled={isProcessing || isComplete}
             className={`py-4 px-6 rounded-2xl flex items-center justify-center gap-2 text-lg font-semibold text-white transition-all ${
               isProcessing || isComplete
-                ? 'bg-gray-400 cursor-not-allowed'
-                : 'bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 shadow-lg hover:shadow-xl hover:-translate-y-0.5 active:translate-y-0'
+                ? "bg-gray-400 cursor-not-allowed"
+                : "bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 shadow-lg hover:shadow-xl hover:-translate-y-0.5 active:translate-y-0"
             }`}
           >
             <Play size={24} fill="currentColor" />
-            生成全部{isComplete ? ' (已完成)' : ''}
+            开始创作{isComplete ? " (已完成)" : ""}({currentProgress.completed}
+            /7)
           </button>
         </div>
       )}
-      {error && error !== '生成已终止' && (
+      {error && error !== "生成已终止" && (
         <div className="mt-3 p-4 bg-red-50 border border-red-200 rounded-xl text-red-600 text-sm flex items-start gap-3">
           <AlertCircle size={20} className="flex-shrink-0 mt-0.5" />
           <span>{error}</span>
         </div>
       )}
-      {error === '生成已终止' && (
+      {error === "生成已终止" && (
         <div className="mt-3 p-4 bg-yellow-50 border border-yellow-200 rounded-xl text-yellow-700 text-sm flex items-start gap-3">
           <AlertTriangle size={20} className="flex-shrink-0 mt-0.5" />
           <span>{error}</span>

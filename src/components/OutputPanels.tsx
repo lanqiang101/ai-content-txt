@@ -121,25 +121,37 @@ export const OutputPanels: React.FC<OutputPanelsProps> = ({ generation }) => {
   const { currentStage, stage1Result, stage2Result, stage3Result, isGenerating } = generation;
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-      <OutputPanel
-        title="阶段1 - 骨架"
-        content={stage1Result}
-        stage={1}
-        isLoading={isGenerating && currentStage === 1}
-      />
-      <OutputPanel
-        title="阶段2 - 血肉"
-        content={stage2Result}
-        stage={2}
-        isLoading={isGenerating && currentStage === 2}
-      />
-      <OutputPanel
-        title="阶段3 - 成品"
-        content={stage3Result}
-        stage={3}
-        isLoading={isGenerating && currentStage === 3}
-      />
+    <div className="space-y-4 mb-6">
+      {stage1Result && (
+        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg card-gradient overflow-hidden transition-all hover:shadow-xl">
+          <OutputPanel
+            title="阶段1 - 骨架"
+            content={stage1Result}
+            stage={1}
+            isLoading={isGenerating && currentStage === 1}
+          />
+        </div>
+      )}
+      {stage2Result && (
+        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg card-gradient overflow-hidden transition-all hover:shadow-xl">
+          <OutputPanel
+            title="阶段2 - 血肉"
+            content={stage2Result}
+            stage={2}
+            isLoading={isGenerating && currentStage === 2}
+          />
+        </div>
+      )}
+      {stage3Result && (
+        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg card-gradient overflow-hidden transition-all hover:shadow-xl">
+          <OutputPanel
+            title="阶段3 - 成品"
+            content={stage3Result}
+            stage={3}
+            isLoading={isGenerating && currentStage === 3}
+          />
+        </div>
+      )}
     </div>
   );
 };

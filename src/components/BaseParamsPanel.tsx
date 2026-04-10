@@ -25,6 +25,16 @@ export const BaseParamsPanel: React.FC = () => {
       </div>
 
       <div className="space-y-5">
+        {/* 热门主题推荐搜索 - 独立区块，放在最上面 */}
+        <div className="bg-gradient-to-r from-orange-50 to-pink-50 dark:from-orange-900/20 dark:to-pink-900/20 rounded-xl p-4 border border-orange-100 dark:border-orange-800">
+          <label className="block text-sm font-medium text-gray-800 dark:text-gray-200 mb-2">
+            🔥 热门主题推荐（输入关键词获取2026年番茄热门推荐）
+          </label>
+          <HotTopicSearch
+            onSelectTopic={(topic) => setParams({ topic })}
+          />
+        </div>
+
         {/* 内容类型 */}
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -127,17 +137,9 @@ export const BaseParamsPanel: React.FC = () => {
             />
           </div>
         )}
-
-        {/* 热门主题推荐搜索 - 独立区块 */}
-        <div className="bg-gradient-to-r from-orange-50 to-pink-50 dark:from-orange-900/20 dark:to-pink-900/20 rounded-xl p-4 border border-orange-100 dark:border-orange-800 mt-6">
-          <label className="block text-sm font-medium text-gray-800 dark:text-gray-200 mb-2">
-            🔥 热门主题推荐（输入关键词获取2026年番茄热门推荐）
-          </label>
-          <HotTopicSearch
-            onSelectTopic={(topic) => setParams({ topic })}
-          />
-        </div>
       </div>
     </div>
   );
 };
+
+export default BaseParamsPanel;
