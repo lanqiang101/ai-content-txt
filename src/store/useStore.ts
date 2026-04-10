@@ -4,17 +4,11 @@ import {
   PipelineConfig, GenerationState, GenerationParams, ContentHistory,
   ModelConfig, ReaderConfig, CharacterConfig, PlotConfig,
   RhythmConfig, DetailConfig, EmotionConfig, AntiAIConfig,
-  Work, BookOutline, StoryboardResult, Character
+  Work, BookOutline, StoryboardResult, Character, BatchAutomationConfig
 } from '../types';
 
-interface TimerAutomation {
-  enabled: boolean;
-  bookCount: number;
-  minWordCount: number;
-  maxWordCount: number;
-  themes: string[];
-  intervalMinutes: number;
-  isRunning: boolean;
+interface TimerAutomation extends Omit<BatchAutomationConfig, 'params'> {
+  params: GenerationParams;
 }
 
 interface AppState {
@@ -86,7 +80,7 @@ const defaultStageConfigWithActive = (defaultModel: string) => {
   };
 };
 
-const defaultReaderConfig: ReaderConfig = {
+export const defaultReaderConfig: ReaderConfig = {
   ageRange: '18-25',
   genderPreference: 'all',
   coreAppeal: '爽点',
@@ -94,7 +88,7 @@ const defaultReaderConfig: ReaderConfig = {
   targetPlatform: 'tomato',
 };
 
-const defaultCharacterConfig: CharacterConfig = {
+export const defaultCharacterConfig: CharacterConfig = {
   coreFlaw: '',
   motivation: '',
   habits: '',
@@ -106,7 +100,7 @@ const defaultCharacterConfig: CharacterConfig = {
   supportingBackstory: false,
 };
 
-const defaultPlotConfig: PlotConfig = {
+export const defaultPlotConfig: PlotConfig = {
   mainChain: '',
   foreshadowing: '',
   branchRatio: 30,
@@ -120,7 +114,7 @@ const defaultPlotConfig: PlotConfig = {
   openEnding: false,
 };
 
-const defaultRhythmConfig: RhythmConfig = {
+export const defaultRhythmConfig: RhythmConfig = {
   alternation: '3段平淡 + 1段高潮',
   climaxDensity: '每3k字小高潮，每1w字中高潮',
   chapterEndHook: true,
@@ -129,21 +123,21 @@ const defaultRhythmConfig: RhythmConfig = {
   averageParaLength: 'short',
 };
 
-const defaultDetailConfig: DetailConfig = {
+export const defaultDetailConfig: DetailConfig = {
   senseRatio: '视觉60% + 听觉25% + 嗅觉10% + 触觉5%',
   locationDetails: '',
   atmosphere: 'relaxed',
   randomInterlude: true,
 };
 
-const defaultEmotionConfig: EmotionConfig = {
+export const defaultEmotionConfig: EmotionConfig = {
   progression: '陌生→好奇→共情→动容',
   empathyScenes: '逆袭',
   expressionStyle: 'reserved',
   coreEmotion: '',
 };
 
-const defaultAntiAIConfig: AntiAIConfig = {
+export const defaultAntiAIConfig: AntiAIConfig = {
   templateDeletePercent: 60,
   casualTolerance: 30,
   unpredictableTurnPercent: 40,
@@ -196,6 +190,22 @@ const initialTimerAutomation: TimerAutomation = {
   themes: [],
   intervalMinutes: 30,
   isRunning: false,
+  // 批量创作独立参数默认值，复制单次创作默认值
+  params: {
+    type: 'novel',
+    topic: '',
+    title: '',
+    keywords: '',
+    wordCount: 1500,
+    style: '',
+    reader: defaultReaderConfig,
+    character: defaultCharacterConfig,
+    plot: defaultPlotConfig,
+    rhythm: defaultRhythmConfig,
+    detail: defaultDetailConfig,
+    emotion: defaultEmotionConfig,
+    antiAI: defaultAntiAIConfig,
+  },
 };
 
 export const useStore = create<AppState>()(

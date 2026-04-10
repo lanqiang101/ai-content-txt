@@ -1,4 +1,5 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import { BaseParamsPanel } from './components/BaseParamsPanel';
 import { InputPanel } from './components/InputPanel';
 import { CycleProgress } from './components/CycleProgress';
 import { OutputPanels } from './components/OutputPanels';
@@ -16,6 +17,7 @@ import { Tooltip } from './components/Tooltip';
 function App() {
   const { generation, darkMode, toggleDarkMode } = useStore();
   const { runAllCycles } = useGeneration();
+  const [activeTab, setActiveTab] = useState<'single' | 'batch'>('single');
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -66,8 +68,8 @@ function App() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-slate-100 dark:from-slate-900 dark:via-slate-900 dark:to-slate-950 transition-colors duration-500">
-      <div className="max-w-[1600px] mx-auto">
+    <div className="h-screen bg-gradient-to-br from-gray-50 via-white to-slate-100 dark:from-slate-900 dark:via-slate-900 dark:to-slate-950 transition-colors duration-500 overflow-hidden">
+      <div className="max-w-[1600px] mx-auto h-full flex flex-col">
         <header className="sticky top-0 z-40 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-b border-gray-200 dark:border-slate-700/50">
           <div className="px-4 sm:px-6 lg:px-8">
             <div className="flex items-center justify-between h-16">
@@ -108,12 +110,55 @@ function App() {
           </div>
         </header>
 
-        <main className="p-4 sm:px-6 lg:px-8 py-6">
+        <main className="flex-1 overflow-y-auto pt-[60px] pb-[120px] px-4 sm:px-6 lg:px-8 py-6">
           <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
             <div className="xl:col-span-1">
-              <div className="sticky top-24 space-y-4">
-                <InputPanel />
-                <TimerAutomation />
+              <div className="sticky top-24 space-y-6">
+                {/* 公共基础参数区块 */}
+                <BaseParamsPanel />
+
+                {/* Tab切换区域 - 单篇创作 / 批量自动创作 */}
+                <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg border border-gray-200/50 dark:border-slate-700/50 overflow-hidden">
+                  <div className="border-b border-gray-200 dark:border-slate-700 px-4 py-3">
+                    <div className="flex gap-2">
+                      <button
+                        className={`flex-1 px-4 py-2 rounded-lg transition-all font-medium text-sm ${
+                          activeTab === 'single'
+                            ? 'bg-primary text-white shadow-md shadow-primary/20'
+                            : 'bg-gray-100 text-gray-700 dark:bg-slate-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-slate-600'
+                        }`}
+                        onClick={() => setActiveTab('single')}
+                      >
+                        单篇创作
+                      </button>
+                      <button
+                        className={`flex-1 px-4 py-2 rounded-lg transition-all font-medium text-sm ${
+                          activeTab === 'batch'
+                            ? 'bg-primary text-white shadow-md shadow-primary/20'
+                            : 'bg-gray-100 text-gray-700 dark:bg-slate-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-slate-600'
+                        }`}
+                        onClick={() => setActiveTab('batch')}
+                      >
+                        批量自动创作
+                      </button>
+                    </div>
+                  </div>
+                  <div className="p-4">
+                    {activeTab === 'single' && (
+                      <div className="space-y-4">
+                        <InputPanel />
+                        <div className="flex items-center justify-center gap-3 pt-2">
+                          <GenerateButton />
+                        </div>
+                      </div>
+                    )}
+                    {activeTab === 'batch' && (
+                      <div className="space-y-4">
+                        <TimerAutomation />
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
             
@@ -124,16 +169,12 @@ function App() {
               
               <OutputPanels generation={generation} />
               
-              <div className="flex items-center justify-center gap-3">
-                <GenerateButton />
-              </div>
-              
               <FinalOutput generation={generation} />
             </div>
           </div>
         </main>
 
-        <footer className="py-6 text-center text-gray-400 dark:text-gray-500 text-sm border-t border-gray-200 dark:border-slate-800/50">
+        <footer className="h-[120px] py-6 flex items-center justify-center text-center text-gray-400 dark:text-gray-500 text-sm border-t border-gray-200 dark:border-slate-800/50">
           <div className="flex items-center justify-center gap-2">
             <span>纯本地前端</span>
             <span className="w-1 h-1 bg-gray-300 dark:bg-gray-600 rounded-full" />

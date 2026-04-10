@@ -343,3 +343,26 @@ export interface ContentHistory {
   result: string;
   createdAt: number;
 }
+
+// 批量自动创作配置
+export interface BatchAutomationConfig {
+  enabled: boolean;
+  bookCount: number;
+  minWordCount: number;
+  maxWordCount: number;
+  themes: string[];
+  intervalMinutes: number;
+  isRunning: boolean;
+  // 批量创作独立参数配置 - 完全独立于单次创作
+  params: {
+    type: ContentType;
+    style: string;
+    reader: ReaderConfig;
+    character: CharacterConfig;
+    plot: PlotConfig;
+    rhythm: RhythmConfig;
+    detail: DetailConfig;
+    emotion: EmotionConfig;
+    antiAI: AntiAIConfig;
+  };
+}
