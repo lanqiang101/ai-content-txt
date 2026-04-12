@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
-import { Copy, Download, Check, RefreshCw, Square } from 'lucide-react';
-import { GenerationState } from '../types';
-import { useStore } from '../store/useStore';
-import { useGeneration } from '../hooks/useGeneration';
-import { Tooltip } from './Tooltip';
+import React, { useState } from "react";
+import { Copy, Download, Check, RefreshCw, Square } from "lucide-react";
+import { GenerationState } from "../types";
+import { useStore } from "../store/useStore";
+import { useGeneration } from "../hooks/useGeneration";
+import { Tooltip } from "./Tooltip";
 
 interface OutputPanelProps {
   title: string;
@@ -30,11 +30,17 @@ const STAGE_COLORS = {
   },
 };
 
-const OutputPanel: React.FC<OutputPanelProps> = ({ title, content, stage, isLoading }) => {
+const OutputPanel: React.FC<OutputPanelProps> = ({
+  title,
+  content,
+  stage,
+  isLoading,
+}) => {
   const [copied, setCopied] = useState(false);
   const { regenerateStageCycle, stopGeneration } = useGeneration();
-  const generation = useStore(state => state.generation);
-  const isGeneratingThis = generation.currentStage === stage && generation.isGenerating;
+  const generation = useStore((state) => state.generation);
+  const isGeneratingThis =
+    generation.currentStage === stage && generation.isGenerating;
   const colors = STAGE_COLORS[stage];
 
   const handleCopy = async () => {
@@ -44,11 +50,11 @@ const OutputPanel: React.FC<OutputPanelProps> = ({ title, content, stage, isLoad
   };
 
   const handleDownload = () => {
-    const blob = new Blob([content], { type: 'text/plain' });
+    const blob = new Blob([content], { type: "text/plain" });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
+    const a = document.createElement("a");
     a.href = url;
-    a.download = `${title.replace(/\s+/g, '-')}.txt`;
+    a.download = `${title.replace(/\s+/g, "-")}.txt`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -62,7 +68,7 @@ const OutputPanel: React.FC<OutputPanelProps> = ({ title, content, stage, isLoad
       const cycleCount = cycleCountMap[stage];
       await regenerateStageCycle(stage, cycleCount);
     } catch (err) {
-      console.error('Regenerate failed:', err);
+      console.error("Regenerate failed:", err);
     }
   };
 
@@ -71,8 +77,12 @@ const OutputPanel: React.FC<OutputPanelProps> = ({ title, content, stage, isLoad
   };
 
   return (
-    <div className={`bg-white dark:bg-slate-800 rounded-2xl shadow-lg overflow-hidden transition-all hover:shadow-xl border ${colors.border} flex flex-col h-[500px]`}>
-      <div className={`flex items-center justify-between px-4 py-3 bg-gradient-to-r ${colors.gradient}`}>
+    <div
+      className={`bg-white dark:bg-slate-800 rounded-2xl shadow-lg overflow-hidden transition-all hover:shadow-xl border ${colors.border} flex flex-col h-[300px]`}
+    >
+      <div
+        className={`flex items-center justify-between px-4 py-3 bg-gradient-to-r ${colors.gradient}`}
+      >
         <h3 className="font-semibold text-white text-sm">{title}</h3>
         <div className="flex gap-1">
           {content && !isGeneratingThis && (
@@ -116,7 +126,7 @@ const OutputPanel: React.FC<OutputPanelProps> = ({ title, content, stage, isLoad
         </div>
       </div>
       <div className="flex-1 p-4 overflow-y-auto">
-        {isGeneratingThis || (isLoading && content === '') ? (
+        {isGeneratingThis || (isLoading && content === "") ? (
           <div className="flex items-center justify-center h-full text-gray-400 dark:text-gray-500">
             <div className="animate-pulse">生成中...</div>
           </div>
@@ -146,19 +156,19 @@ export const OutputPanels: React.FC<OutputPanelsProps> = ({ generation }) => {
     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
       <OutputPanel
         title="阶段1 - 骨架"
-        content={stage1Result || ''}
+        content={stage1Result || ""}
         stage={1}
         isLoading={generation.isGenerating && generation.currentStage === 1}
       />
       <OutputPanel
         title="阶段2 - 血肉"
-        content={stage2Result || ''}
+        content={stage2Result || ""}
         stage={2}
         isLoading={generation.isGenerating && generation.currentStage === 2}
       />
       <OutputPanel
         title="阶段3 - 成品"
-        content={stage3Result || ''}
+        content={stage3Result || ""}
         stage={3}
         isLoading={generation.isGenerating && generation.currentStage === 3}
       />

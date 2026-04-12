@@ -201,7 +201,7 @@ function App() {
             {/* 右侧：公共参数 + 输出 - 2/3 宽度 */}
             <div className="xl:col-span-2 flex flex-col min-h-0">
               {/* 公共基础参数区块 - 限制最大高度避免占用太多空间 */}
-              <div className="mb-4 max-h-[40vh] overflow-y-auto">
+              <div className="mb-4 ">
                 <BaseParamsPanel />
               </div>
 
