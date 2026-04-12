@@ -9,6 +9,14 @@ interface EmotionSectionProps {
 }
 
 export const EmotionSection: React.FC<EmotionSectionProps> = ({ emotion, onChange }) => {
+  const defaultEmotion: EmotionConfig = {
+    progression: '陌生→好奇→共情→动容',
+    empathyScenes: '逆袭',
+    expressionStyle: 'reserved',
+    coreEmotion: '',
+  };
+  const safeEmotion = emotion ?? defaultEmotion;
+
   return (
     <details className="group open rounded-xl border border-gray-200 dark:border-slate-600 p-4">
       <summary className="cursor-pointer font-medium text-gray-800 dark:text-gray-100">
@@ -24,7 +32,7 @@ export const EmotionSection: React.FC<EmotionSectionProps> = ({ emotion, onChang
           <div className="relative">
             <input
               type="text"
-              value={emotion.progression}
+              value={safeEmotion.progression}
               onChange={(e) => onChange({ progression: e.target.value })}
               className="w-full pl-3 pr-12 py-2 border border-gray-200 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all bg-white/80 dark:bg-slate-700/80 text-gray-900 dark:text-gray-100"
               placeholder="陌生→好奇→共情→动容"
@@ -48,7 +56,7 @@ export const EmotionSection: React.FC<EmotionSectionProps> = ({ emotion, onChang
           <div className="relative">
             <input
               type="text"
-              value={emotion.empathyScenes}
+              value={safeEmotion.empathyScenes}
               onChange={(e) => onChange({ empathyScenes: e.target.value })}
               className="w-full pl-3 pr-12 py-2 border border-gray-200 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all bg-white/80 dark:bg-slate-700/80 text-gray-900 dark:text-gray-100"
               placeholder="遗憾 / 意难平 / 救赎 / 团圆 / 逆袭"
@@ -71,7 +79,7 @@ export const EmotionSection: React.FC<EmotionSectionProps> = ({ emotion, onChang
           </div>
           <div className="relative">
             <select
-              value={emotion.expressionStyle}
+              value={safeEmotion.expressionStyle}
               onChange={(e) =>
                 onChange({ expressionStyle: e.target.value as any })
               }
@@ -104,7 +112,7 @@ export const EmotionSection: React.FC<EmotionSectionProps> = ({ emotion, onChang
           <div className="relative">
             <input
               type="text"
-              value={emotion.coreEmotion}
+              value={safeEmotion.coreEmotion}
               onChange={(e) => onChange({ coreEmotion: e.target.value })}
               className="w-full pl-3 pr-12 py-2 border border-gray-200 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all bg-white/80 dark:bg-slate-700/80 text-gray-900 dark:text-gray-100"
               placeholder="全文想让读者记住的 feeling"

@@ -6,12 +6,11 @@ import { useCycleGeneration } from './useCycleGeneration';
 import { useCharacterGenerate } from './useCharacterGenerate';
 import { useStoryboardGenerate } from './useStoryboardGenerate';
 import { CYCLE_CONFIG } from './constants';
-import { GenerationParams } from '../types';
 
 export { CYCLE_CONFIG };
 
 export const useGeneration = () => {
-  const { params, generation, setGeneration } = useStore();
+  const { params, generation } = useStore();
   const abortControllerRef = useRef<AbortController | null>(null);
   const { buildFullPrompt } = usePromptBuilder();
   const { startGeneration, stopGeneration, regenerateStageCycle } = useCycleGeneration();

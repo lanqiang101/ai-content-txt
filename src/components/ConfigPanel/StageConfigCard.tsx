@@ -16,15 +16,15 @@ export const StageConfigCard: React.FC<StageConfigCardProps> = ({
   onChange,
 }) => {
   const [expanded, setExpanded] = useState(true);
-  const safeStageConfig = stageConfig || { models: [], activeModelId: '' };
-  const [editingModelId, setEditingModelId] = useState<string | null>(
+  const safeStageConfig = stageConfig || { models: [], activeModelId: "" };
+  const [editingModelId, setEditingModelId] = useState<number | null>(
     safeStageConfig.activeModelId,
   );
 
   const addModel = () => {
     const models = safeStageConfig.models || [];
     const newModel: ModelConfig = {
-      id: generateId(),
+      id: Date.now(),
       name: `模型 ${models.length + 1}`,
       mode: "api",
       localUrl: "http://localhost:11434",
@@ -42,7 +42,7 @@ export const StageConfigCard: React.FC<StageConfigCardProps> = ({
     setExpanded(true);
   };
 
-  const deleteModel = (modelId: string) => {
+  const deleteModel = (modelId: number) => {
     const models = safeStageConfig.models || [];
     if (models.length <= 1) return;
     const newModels = models.filter((m) => m.id !== modelId);
@@ -60,7 +60,7 @@ export const StageConfigCard: React.FC<StageConfigCardProps> = ({
     }
   };
 
-  const setActiveModel = (modelId: string) => {
+  const setActiveModel = (modelId: number) => {
     onChange({
       ...safeStageConfig,
       activeModelId: modelId,
@@ -68,7 +68,7 @@ export const StageConfigCard: React.FC<StageConfigCardProps> = ({
     setEditingModelId(modelId);
   };
 
-  const updateModel = (modelId: string, updates: Partial<ModelConfig>) => {
+  const updateModel = (modelId: number, updates: Partial<ModelConfig>) => {
     const models = safeStageConfig.models || [];
     const newModels = models.map((m) =>
       m.id === modelId ? { ...m, ...updates } : m,

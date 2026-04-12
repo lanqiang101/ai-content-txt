@@ -9,6 +9,15 @@ interface ReaderSectionProps {
 }
 
 export const ReaderSection: React.FC<ReaderSectionProps> = ({ reader, onChange }) => {
+  const defaultReader: ReaderConfig = {
+    ageRange: '18-25',
+    genderPreference: 'all',
+    coreAppeal: '爽点',
+    taboo: '',
+    targetPlatform: 'tomato',
+  };
+  const safeReader = reader ?? defaultReader;
+
   return (
     <details className="group open rounded-xl border border-gray-200 dark:border-slate-600 p-4">
       <summary className="cursor-pointer font-medium text-gray-800 dark:text-gray-100">
@@ -24,7 +33,7 @@ export const ReaderSection: React.FC<ReaderSectionProps> = ({ reader, onChange }
           <div className="relative">
             <input
               type="text"
-              value={reader.ageRange}
+              value={safeReader.ageRange}
               onChange={(e) => onChange({ ageRange: e.target.value })}
               className="w-full pl-3 pr-12 py-2 border border-gray-200 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all bg-white/80 dark:bg-slate-700/80 text-gray-900 dark:text-gray-100"
               placeholder="18-25岁"
@@ -47,7 +56,7 @@ export const ReaderSection: React.FC<ReaderSectionProps> = ({ reader, onChange }
           </div>
           <div className="relative">
             <select
-              value={reader.genderPreference}
+              value={safeReader.genderPreference}
               onChange={(e) =>
                 onChange({ genderPreference: e.target.value as any })
               }
@@ -80,7 +89,7 @@ export const ReaderSection: React.FC<ReaderSectionProps> = ({ reader, onChange }
           <div className="relative">
             <input
               type="text"
-              value={reader.coreAppeal}
+              value={safeReader.coreAppeal}
               onChange={(e) => onChange({ coreAppeal: e.target.value })}
               className="w-full pl-3 pr-12 py-2 border border-gray-200 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all bg-white/80 dark:bg-slate-700/80 text-gray-900 dark:text-gray-100"
               placeholder="爽点 / 泪点 / 悬疑感 / 治愈感"
@@ -104,7 +113,7 @@ export const ReaderSection: React.FC<ReaderSectionProps> = ({ reader, onChange }
           <div className="relative">
             <input
               type="text"
-              value={reader.taboo}
+              value={safeReader.taboo}
               onChange={(e) => onChange({ taboo: e.target.value })}
               className="w-full pl-3 pr-12 py-2 border border-gray-200 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all bg-white/80 dark:bg-slate-700/80 text-gray-900 dark:text-gray-100"
               placeholder="禁止的情节、人设、三观"
@@ -127,7 +136,7 @@ export const ReaderSection: React.FC<ReaderSectionProps> = ({ reader, onChange }
           </div>
           <div className="relative">
             <select
-              value={reader.targetPlatform}
+              value={safeReader.targetPlatform}
               onChange={(e) =>
                 onChange({ targetPlatform: e.target.value as any })
               }

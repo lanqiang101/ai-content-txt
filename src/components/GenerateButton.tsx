@@ -47,13 +47,13 @@ export const GenerateButton: React.FC = () => {
       {isProcessing ? (
         <button
           onClick={handleStop}
-          className="w-full py-4 px-6 rounded-2xl flex items-center justify-center gap-2 text-lg font-semibold text-white transition-all bg-red-500 hover:bg-red-600 shadow-lg hover:shadow-xl hover:-translate-y-0.5 active:translate-y-0"
+          className="flex-1 w-full flex items-center justify-center gap-2 px-4 py-4 bg-red-500 hover:bg-red-600 text-white rounded-xl shadow-lg hover:shadow-xl transition-all"
         >
           <Square size={24} fill="currentColor" />
           终止生成
         </button>
       ) : (
-        <div className="grid  gap-3 ">
+        <div className="grid gap-3">
           {/* <button
             onClick={handleNext}
             disabled={isProcessing || isComplete}
@@ -69,11 +69,11 @@ export const GenerateButton: React.FC = () => {
           <button
             onClick={handleRunAll}
             disabled={isProcessing || isComplete}
-            className={`py-4 px-6 rounded-2xl flex items-center justify-center gap-2 text-lg font-semibold text-white transition-all ${
+            className={`w-full flex items-center justify-center gap-2 px-4 py-4 ${
               isProcessing || isComplete
-                ? "bg-gray-400 cursor-not-allowed"
-                : "bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 shadow-lg hover:shadow-xl hover:-translate-y-0.5 active:translate-y-0"
-            }`}
+                ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+                : "bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white shadow-lg hover:shadow-xl transition-all"
+            } rounded-xl text-lg font-semibold`}
           >
             <Play size={24} fill="currentColor" />
             开始创作{isComplete ? " (已完成)" : ""}({currentProgress.completed}

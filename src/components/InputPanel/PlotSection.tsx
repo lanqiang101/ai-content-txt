@@ -10,6 +10,21 @@ interface PlotSectionProps {
 }
 
 export const PlotSection: React.FC<PlotSectionProps> = ({ plot, onChange }) => {
+  const defaultPlot: PlotConfig = {
+    mainChain: '',
+    foreshadowing: '',
+    branchRatio: 30,
+    causalConstraint: true,
+    checkReversal: true,
+    hookWordCount: 500,
+    twistPerThousand: 1,
+    structure: 'linear',
+    forceConflictAtStart: true,
+    seedForeshadow: true,
+    openEnding: false,
+  };
+  const safePlot = plot ?? defaultPlot;
+
   return (
     <details className="group open rounded-xl border border-gray-200 dark:border-slate-600 p-4">
       <summary className="cursor-pointer font-medium text-gray-800 dark:text-gray-100">
@@ -27,7 +42,7 @@ export const PlotSection: React.FC<PlotSectionProps> = ({ plot, onChange }) => {
               type="number"
               min={100}
               max={5000}
-              value={plot.hookWordCount}
+              value={safePlot.hookWordCount}
               onChange={(e) =>
                 onChange({ hookWordCount: parseInt(e.target.value) })
               }
@@ -59,7 +74,7 @@ export const PlotSection: React.FC<PlotSectionProps> = ({ plot, onChange }) => {
               min={0}
               max={3}
               step={0.5}
-              value={plot.twistPerThousand}
+              value={safePlot.twistPerThousand}
               onChange={(e) =>
                 onChange({ twistPerThousand: parseFloat(e.target.value) })
               }
@@ -83,7 +98,7 @@ export const PlotSection: React.FC<PlotSectionProps> = ({ plot, onChange }) => {
           </div>
           <div className="relative">
             <select
-              value={plot.structure}
+              value={safePlot.structure}
               onChange={(e) =>
                 onChange({ structure: e.target.value as any })
               }
@@ -115,7 +130,7 @@ export const PlotSection: React.FC<PlotSectionProps> = ({ plot, onChange }) => {
           </label>
           <input
             type="checkbox"
-            checked={plot.forceConflictAtStart}
+            checked={safePlot.forceConflictAtStart}
             onChange={(e) =>
               onChange({ forceConflictAtStart: e.target.checked })
             }
@@ -128,7 +143,7 @@ export const PlotSection: React.FC<PlotSectionProps> = ({ plot, onChange }) => {
           </label>
           <input
             type="checkbox"
-            checked={plot.seedForeshadow}
+            checked={safePlot.seedForeshadow}
             onChange={(e) =>
               onChange({ seedForeshadow: e.target.checked })
             }
@@ -141,7 +156,7 @@ export const PlotSection: React.FC<PlotSectionProps> = ({ plot, onChange }) => {
           </label>
           <input
             type="checkbox"
-            checked={plot.openEnding}
+            checked={safePlot.openEnding}
             onChange={(e) =>
               onChange({ openEnding: e.target.checked })
             }

@@ -10,6 +10,19 @@ interface CharacterSectionProps {
 }
 
 export const CharacterSection: React.FC<CharacterSectionProps> = ({ character, onChange }) => {
+  const defaultCharacter: CharacterConfig = {
+    coreFlaw: '',
+    motivation: '',
+    habits: '',
+    emotionThreshold: '',
+    growthArc: '',
+    secretIntensity: 50,
+    goldenSentencePerThousand: 2,
+    arcType: 'none',
+    supportingBackstory: false,
+  };
+  const safeCharacter = character ?? defaultCharacter;
+
   return (
     <details className="group open rounded-xl border border-gray-200 dark:border-slate-600 p-4">
       <summary className="cursor-pointer font-medium text-gray-800 dark:text-gray-100">
@@ -25,7 +38,7 @@ export const CharacterSection: React.FC<CharacterSectionProps> = ({ character, o
           <div className="relative">
             <input
               type="text"
-              value={character.coreFlaw}
+              value={safeCharacter.coreFlaw}
               onChange={(e) => onChange({ coreFlaw: e.target.value })}
               className="w-full pl-3 pr-12 py-2 border border-gray-200 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all bg-white/80 dark:bg-slate-700/80 text-gray-900 dark:text-gray-100"
               placeholder="懦弱 / 偏执 / 太善良"
@@ -51,7 +64,7 @@ export const CharacterSection: React.FC<CharacterSectionProps> = ({ character, o
               type="range"
               min={0}
               max={100}
-              value={character.secretIntensity}
+              value={safeCharacter.secretIntensity}
               onChange={(e) =>
                 onChange({ secretIntensity: parseInt(e.target.value) })
               }
@@ -82,7 +95,7 @@ export const CharacterSection: React.FC<CharacterSectionProps> = ({ character, o
               min={0}
               max={5}
               step={1}
-              value={character.goldenSentencePerThousand}
+              value={safeCharacter.goldenSentencePerThousand}
               onChange={(e) =>
                 onChange({ goldenSentencePerThousand: parseInt(e.target.value) })
               }
@@ -109,7 +122,7 @@ export const CharacterSection: React.FC<CharacterSectionProps> = ({ character, o
           </div>
           <div className="relative">
             <select
-              value={character.arcType}
+              value={safeCharacter.arcType}
               onChange={(e) =>
                 onChange({ arcType: e.target.value as any })
               }
@@ -141,7 +154,7 @@ export const CharacterSection: React.FC<CharacterSectionProps> = ({ character, o
           </label>
           <input
             type="checkbox"
-            checked={character.supportingBackstory}
+            checked={safeCharacter.supportingBackstory}
             onChange={(e) =>
               onChange({ supportingBackstory: e.target.checked })
             }

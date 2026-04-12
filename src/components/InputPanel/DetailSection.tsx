@@ -9,6 +9,14 @@ interface DetailSectionProps {
 }
 
 export const DetailSection: React.FC<DetailSectionProps> = ({ detail, onChange }) => {
+  const defaultDetail: DetailConfig = {
+    senseRatio: '视觉60% + 听觉25% + 嗅觉10% + 触觉5%',
+    locationDetails: '',
+    atmosphere: 'relaxed',
+    randomInterlude: true,
+  };
+  const safeDetail = detail ?? defaultDetail;
+
   return (
     <details className="group open rounded-xl border border-gray-200 dark:border-slate-600 p-4">
       <summary className="cursor-pointer font-medium text-gray-800 dark:text-gray-100">
@@ -24,7 +32,7 @@ export const DetailSection: React.FC<DetailSectionProps> = ({ detail, onChange }
           <div className="relative">
             <input
               type="text"
-              value={detail.senseRatio}
+              value={safeDetail.senseRatio}
               onChange={(e) => onChange({ senseRatio: e.target.value })}
               className="w-full pl-3 pr-12 py-2 border border-gray-200 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all bg-white/80 dark:bg-slate-700/80 text-gray-900 dark:text-gray-100"
               placeholder="视/听/嗅/味/触分配"
@@ -48,7 +56,7 @@ export const DetailSection: React.FC<DetailSectionProps> = ({ detail, onChange }
           <div className="relative">
             <input
               type="text"
-              value={detail.locationDetails}
+              value={safeDetail.locationDetails}
               onChange={(e) => onChange({ locationDetails: e.target.value })}
               className="w-full pl-3 pr-12 py-2 border border-gray-200 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all bg-white/80 dark:bg-slate-700/80 text-gray-900 dark:text-gray-100"
               placeholder="方言 / 老物件 / 特色场景"
@@ -71,7 +79,7 @@ export const DetailSection: React.FC<DetailSectionProps> = ({ detail, onChange }
           </div>
           <div className="relative">
             <select
-              value={detail.atmosphere}
+              value={safeDetail.atmosphere}
               onChange={(e) =>
                 onChange({ atmosphere: e.target.value as any })
               }
@@ -103,7 +111,7 @@ export const DetailSection: React.FC<DetailSectionProps> = ({ detail, onChange }
           </label>
           <input
             type="checkbox"
-            checked={detail.randomInterlude}
+            checked={safeDetail.randomInterlude}
             onChange={(e) =>
               onChange({ randomInterlude: e.target.checked })
             }

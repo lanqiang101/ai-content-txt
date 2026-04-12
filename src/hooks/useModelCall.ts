@@ -13,7 +13,7 @@ export const callModel = async (
   config: ModelConfig,
   signal: AbortSignal
 ): Promise<string> => {
-  if (config.mode === 'local') {
+  if (config.mode === 'local' && config.localUrl) {
     // 确保 localUrl 没有尾随斜杠，然后拼接正确路径
     const baseUrl = config.localUrl.replace(/\/$/, '');
     const response = await fetch(`${baseUrl}/api/generate`, {
@@ -39,7 +39,7 @@ export const callModel = async (
 
     const data = await response.json();
     return data.response;
-  } else {
+  } else if (config.apiUrl) {
     // Ensure the API URL is absolute - if it starts with /, it's a local proxy path (Vite dev proxy)
     let apiUrl = config.apiUrl;
     if (apiUrl.startsWith('/')) {
@@ -88,5 +88,7 @@ export const callModel = async (
 
     const data = await response.json();
     return data.choices[0].message.content;
+  } else {
+    throw new Error('未配置模型地址');
   }
 };

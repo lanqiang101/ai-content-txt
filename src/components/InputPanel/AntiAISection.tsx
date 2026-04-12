@@ -9,6 +9,15 @@ interface AntiAISectionProps {
 }
 
 export const AntiAISection: React.FC<AntiAISectionProps> = ({ antiAI, onChange }) => {
+  const defaultAntiAI: AntiAIConfig = {
+    templateDeletePercent: 60,
+    casualTolerance: 30,
+    unpredictableTurnPercent: 40,
+    whitespacePercent: 20,
+    writingStyle: 'soft',
+  };
+  const safeAntiAI = antiAI ?? defaultAntiAI;
+
   return (
     <details className="group open rounded-xl border border-gray-200 dark:border-slate-600 p-4">
       <summary className="cursor-pointer font-medium text-gray-800 dark:text-gray-100">
@@ -18,7 +27,7 @@ export const AntiAISection: React.FC<AntiAISectionProps> = ({ antiAI, onChange }
         <div>
           <div className="flex items-center justify-between">
             <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">
-              模板化句式删除比例: {antiAI.templateDeletePercent}%
+              模板化句式删除比例: {safeAntiAI.templateDeletePercent}%
             </label>
             <div className="absolute right-1 top-1/2 -translate-y-1/2">
               <RandomSliderButton
@@ -33,7 +42,7 @@ export const AntiAISection: React.FC<AntiAISectionProps> = ({ antiAI, onChange }
             type="range"
             min={0}
             max={100}
-            value={antiAI.templateDeletePercent}
+            value={safeAntiAI.templateDeletePercent}
             onChange={(e) =>
               onChange({ templateDeletePercent: parseInt(e.target.value) })
             }
@@ -46,7 +55,7 @@ export const AntiAISection: React.FC<AntiAISectionProps> = ({ antiAI, onChange }
         <div>
           <div className="flex items-center justify-between">
             <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">
-              口语化语病容忍度: {antiAI.casualTolerance}%
+              口语化语病容忍度: {safeAntiAI.casualTolerance}%
             </label>
             <div className="absolute right-1 top-1/2 -translate-y-1/2">
               <RandomSliderButton
@@ -61,7 +70,7 @@ export const AntiAISection: React.FC<AntiAISectionProps> = ({ antiAI, onChange }
             type="range"
             min={0}
             max={100}
-            value={antiAI.casualTolerance}
+            value={safeAntiAI.casualTolerance}
             onChange={(e) =>
               onChange({ casualTolerance: parseInt(e.target.value) })
             }
@@ -74,7 +83,7 @@ export const AntiAISection: React.FC<AntiAISectionProps> = ({ antiAI, onChange }
         <div>
           <div className="flex items-center justify-between">
             <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">
-              非标准化转折概率: {antiAI.unpredictableTurnPercent}%
+              非标准化转折概率: {safeAntiAI.unpredictableTurnPercent}%
             </label>
             <div className="absolute right-1 top-1/2 -translate-y-1/2">
               <RandomSliderButton
@@ -89,7 +98,7 @@ export const AntiAISection: React.FC<AntiAISectionProps> = ({ antiAI, onChange }
             type="range"
             min={0}
             max={100}
-            value={antiAI.unpredictableTurnPercent}
+            value={safeAntiAI.unpredictableTurnPercent}
             onChange={(e) =>
               onChange({ unpredictableTurnPercent: parseInt(e.target.value) })
             }
@@ -102,7 +111,7 @@ export const AntiAISection: React.FC<AntiAISectionProps> = ({ antiAI, onChange }
         <div>
           <div className="flex items-center justify-between">
             <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">
-              生活化留白比例: {antiAI.whitespacePercent}%
+              生活化留白比例: {safeAntiAI.whitespacePercent}%
             </label>
             <div className="absolute right-1 top-1/2 -translate-y-1/2">
               <RandomSliderButton
@@ -117,7 +126,7 @@ export const AntiAISection: React.FC<AntiAISectionProps> = ({ antiAI, onChange }
             type="range"
             min={0}
             max={100}
-            value={antiAI.whitespacePercent}
+            value={safeAntiAI.whitespacePercent}
             onChange={(e) =>
               onChange({ whitespacePercent: parseInt(e.target.value) })
             }
@@ -135,7 +144,7 @@ export const AntiAISection: React.FC<AntiAISectionProps> = ({ antiAI, onChange }
           </div>
           <div className="relative">
             <select
-              value={antiAI.writingStyle}
+              value={safeAntiAI.writingStyle}
               onChange={(e) =>
                 onChange({ writingStyle: e.target.value as any })
               }

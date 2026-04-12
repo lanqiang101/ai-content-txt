@@ -1,17 +1,28 @@
 import React, { useState } from "react";
 import { Copy, Check } from "lucide-react";
-import { StoryboardPrompt } from "../../types";
+import type { StoryboardResult, SceneDesc } from "../../types";
 
 interface StoryboardPanelProps {
-  storyboards: StoryboardPrompt[];
+  storyboards: StoryboardResult[];
   copiedId: string | null;
-  onCopy: (content: string, id: string) => void;
+  onCopy: (id: string) => void;
+  onClearCopied: () => void;
+  workTitle: string;
+}
+
+// 分镜单个场景描述（用于渲染）
+interface StoryboardScene extends SceneDesc {
+  id: string;
+  chapterNumber: number;
+  clipNumber: number;
 }
 
 export const StoryboardPanel: React.FC<StoryboardPanelProps> = ({
   storyboards,
   copiedId,
   onCopy,
+  onClearCopied,
+  workTitle,
 }) => {
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
@@ -25,13 +36,37 @@ export const StoryboardPanel: React.FC<StoryboardPanelProps> = ({
     );
   }
 
+  // 收集所有分镜场景
+  const allScenes: StoryboardScene[] = storyboards.reduce<StoryboardScene[]>((acc, sb) => {
+    const chapterNumber = sb.chapterNumber || 1;
+    return [
+      ...acc,
+      ...sb.scenes.map((scene, index) => ({
+        ...scene,
+        id: `${sb.id}-scene-${index}`,
+        chapterNumber,
+        clipNumber: index + 1,
+      })),
+    ];
+  }, []);
+
+  // 组合完整prompt文本用于复制
+  const getFullPrompt = (sb: StoryboardScene) => {
+    return [
+      `场景：${sb.name} - ${sb.description}`,
+      `背景：${sb.background}`,
+      `灯光：${sb.lighting}`,
+      `氛围：${sb.mood}`,
+    ].join('\n');
+  };
+
   return (
     <div className="bg-white dark:bg-slate-800 rounded-xl shadow-lg p-4">
       <h3 className="text-lg font-semibold mb-4 text-gray-800 dark:text-gray-100">
-        分镜列表 ({storyboards.length})
+        {workTitle} - 已生成分镜 ({allScenes.length})
       </h3>
       <div className="space-y-3">
-        {storyboards.map((sb) => {
+        {allScenes.map((sb) => {
           const isExpanded = expandedId === sb.id;
           return (
             <div
@@ -44,16 +79,18 @@ export const StoryboardPanel: React.FC<StoryboardPanelProps> = ({
               >
                 <div>
                   <span className="text-sm font-medium text-gray-600 dark:text-gray-300">
-                    第 {sb.chapterNumber || 1} 章 - 第 {sb.clipNumber} 片段
+                    第 {sb.chapterNumber} 章 - 第 {sb.clipNumber} 片段
                   </span>
                   <p className="text-sm text-gray-800 dark:text-gray-100 line-clamp-1">
-                    {sb.scene}
+                    {sb.name}: {sb.description}
                   </p>
                 </div>
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    onCopy(sb.visual, sb.id);
+                    onCopy(sb.id);
+                    navigator.clipboard.writeText(getFullPrompt(sb));
+                    setTimeout(onClearCopied, 2000);
                   }}
                   className="p-1.5 hover:bg-gray-100 dark:hover:bg-slate-700 rounded transition-colors"
                   title="复制分镜描述"
@@ -73,26 +110,26 @@ export const StoryboardPanel: React.FC<StoryboardPanelProps> = ({
                   <div className="space-y-2 text-sm">
                     <div>
                       <span className="font-medium text-gray-700 dark:text-gray-300">
-                        场景：
-                      </span>
-                      <p className="text-gray-800 dark:text-gray-100 mt-1 whitespace-pre-wrap">
-                        {sb.scene}
-                      </p>
-                    </div>
-                    <div>
-                      <span className="font-medium text-gray-700 dark:text-gray-300">
-                        视觉描述：
-                      </span>
-                      <p className="text-gray-800 dark:text-gray-100 mt-1 whitespace-pre-wrap">
-                        {sb.visual}
-                      </p>
-                    </div>
-                    <div>
-                      <span className="font-medium text-gray-700 dark:text-gray-300">
-                        人物：
+                        场景名称：
                       </span>
                       <p className="text-gray-800 dark:text-gray-100 mt-1">
-                        {sb.camera}
+                        {sb.name}
+                      </p>
+                    </div>
+                    <div>
+                      <span className="font-medium text-gray-700 dark:text-gray-300">
+                        描述：
+                      </span>
+                      <p className="text-gray-800 dark:text-gray-100 mt-1 whitespace-pre-wrap">
+                        {sb.description}
+                      </p>
+                    </div>
+                    <div>
+                      <span className="font-medium text-gray-700 dark:text-gray-300">
+                        背景：
+                      </span>
+                      <p className="text-gray-800 dark:text-gray-100 mt-1">
+                        {sb.background}
                       </p>
                     </div>
                     <div>
@@ -105,10 +142,10 @@ export const StoryboardPanel: React.FC<StoryboardPanelProps> = ({
                     </div>
                     <div>
                       <span className="font-medium text-gray-700 dark:text-gray-300">
-                        时长：
+                        氛围：
                       </span>
                       <p className="text-gray-800 dark:text-gray-100 mt-1">
-                        {sb.duration} 秒
+                        {sb.mood}
                       </p>
                     </div>
                   </div>

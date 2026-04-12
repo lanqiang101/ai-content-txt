@@ -6,6 +6,7 @@ import { OutputPanels } from "./components/OutputPanels";
 import { GenerateButton } from "./components/GenerateButton";
 import { FinalOutput } from "./components/FinalOutput";
 import { TimerAutomation } from "./components/TimerAutomation";
+import { BatchStartButton } from "./components/BatchStartButton";
 import { useStore } from "./store/useStore";
 import { useGeneration } from "./hooks/useGeneration";
 import { PenTool, Moon, Sun, Monitor, Sparkles } from "lucide-react";
@@ -66,7 +67,10 @@ function App() {
 
   return (
     <div className="h-screen bg-gradient-to-br from-gray-50 via-white to-slate-100 dark:from-slate-900 dark:via-slate-900 dark:to-slate-950 transition-colors duration-500 overflow-hidden">
-      <div className="max-w-[1600px] mx-auto h-full flex flex-col">
+      {/* 悬浮进度条 - 右侧固定 */}
+      <CycleProgress />
+
+      <div className="max-w-[1600px] mx-auto h-full flex flex-col pr-[340px]">
         <header className="sticky top-0 z-40 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-b border-gray-200 dark:border-slate-700/50">
           <div className="px-4 sm:px-6 lg:px-8">
             <div className="flex items-center justify-between h-16">
@@ -102,6 +106,12 @@ function App() {
                     作品管理
                   </a>
                   <a
+                    href="/storyboards"
+                    className="px-3 py-1.5 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-slate-700 rounded-lg transition-colors"
+                  >
+                    分镜管理
+                  </a>
+                  <a
                     href="/config"
                     className="px-3 py-1.5 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-slate-700 rounded-lg transition-colors"
                   >
@@ -129,10 +139,9 @@ function App() {
         </header>
 
         <main className="flex-1 flex flex-col overflow-hidden px-4 sm:px-6 lg:px-8 pt-4 pb-6">
-          <div className="grid grid-cols-1 xl:grid-cols-4 gap-6 w-full min-h-0 flex-1 overflow-hidden">
+          <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 w-full min-h-0 flex-1 overflow-hidden">
             {/* 左侧：创作参数 - 1/4 宽度 */}
             <div className="xl:col-span-1 flex flex-col min-h-0">
-              {/* 公共基础参数已经移到右上，这里只放创作参数 */}
               {/* Tab切换区域 - Tab头部固定，内容可滚动，按钮在最底部永远可见 */}
               <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg border border-gray-200/50 dark:border-slate-700/50 overflow-hidden flex-shrink-0 flex flex-col flex-1">
                 {/* Tab头部 */}
@@ -180,12 +189,17 @@ function App() {
                       <GenerateButton />
                     </div>
                   )}
+                  {activeTab === "batch" && (
+                    <div className="flex items-center justify-center gap-3">
+                      <BatchStartButton />
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
 
-            {/* 右侧：公共参数 + 输出 - 3/4 宽度 */}
-            <div className="xl:col-span-3 flex flex-col min-h-0">
+            {/* 右侧：公共参数 + 输出 - 2/3 宽度 */}
+            <div className="xl:col-span-2 flex flex-col min-h-0">
               {/* 公共基础参数区块 - 限制最大高度避免占用太多空间 */}
               <div className="mb-4 max-h-[40vh] overflow-y-auto">
                 <BaseParamsPanel />
@@ -193,12 +207,7 @@ function App() {
 
               {/* 输出区域 */}
               <div className="flex-1 overflow-y-auto space-y-4 pr-2">
-                <div className="bg-white dark:bg-slate-800/50 rounded-2xl shadow-sm border border-gray-200/50 dark:border-slate-700/50 p-4">
-                  <CycleProgress />
-                </div>
-
                 <OutputPanels generation={generation} />
-
                 <FinalOutput generation={generation} />
               </div>
             </div>

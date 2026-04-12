@@ -104,23 +104,21 @@ export const usePromptBuilder = () => {
 - 隐藏秘密强度：${character.secretIntensity}%
 - 金句密度：${character.goldenSentencePerThousand} 句/千字
 - 人物弧光：${character.arcType === 'none' ? '无弧光/不变态' :
-    character.arcType === 'positive' ? '成长弧光' :
-    character.arcType === 'fall' ? '堕落弧光' : '复杂反转'}
+        character.arcType === 'positive' ? '成长弧光' :
+          character.arcType === 'fall' ? '堕落弧光' : '复杂反转'}
 ${character.supportingBackstory ? '- 需要给配角分配背景故事\n' : ''}
 ## 情节架构
 - 开篇钩子长度：${plot.hookWordCount} 字
 - 反转密度：${plot.twistPerThousand} 次/千字
-- 故事结构：${
-    plot.structure === 'linear' ? '线性顺叙' :
-    plot.structure === 'inverted' ? '倒叙开头' :
-    plot.structure === 'interrupt' ? '插叙补全' : '多线并行'
-  }
+- 故事结构：${plot.structure === 'linear' ? '线性顺叙' :
+        plot.structure === 'inverted' ? '倒叙开头' :
+          plot.structure === 'interrupt' ? '插叙补全' : '多线并行'
+      }
 ${plot.forceConflictAtStart ? '- 开篇强制冲突\n' : ''}${plot.seedForeshadow ? '- 需要埋下关键伏笔\n' : ''}${plot.openEnding ? '- 使用开放式结尾\n' : ''}
 ## 节奏掌控
-- 平均段落长度：${
-    rhythm.averageParaLength === 'short' ? '短段落（网文）' :
-    rhythm.averageParaLength === 'medium' ? '中等段落' : '长段落（出版）'
-  }
+- 平均段落长度：${rhythm.averageParaLength === 'short' ? '短段落（网文）' :
+        rhythm.averageParaLength === 'medium' ? '中等段落' : '长段落（出版）'
+      }
 - 冲突频率：${rhythm.conflictFrequency}%
 ${rhythm.bufferNodes ? '- 需要插入缓冲节点\n' : ''}
 ## 感官细节
@@ -172,17 +170,16 @@ ${detail.randomInterlude ? '- 需要插入生活化随机插曲\n' : ''}
 - 核心缺陷锚点：${character.coreFlaw || '请自动设计'}
 - 隐藏秘密强度：${character.secretIntensity}%
 - 人物弧光：${character.arcType === 'none' ? '无弧光/不变态' :
-    character.arcType === 'positive' ? '成长弧光' :
-    character.arcType === 'fall' ? '堕落弧光' : '复杂反转'}
+        character.arcType === 'positive' ? '成长弧光' :
+          character.arcType === 'fall' ? '堕落弧光' : '复杂反转'}
 
 ### 情节架构
 - 开篇钩子长度：${plot.hookWordCount} 字
 - 反转密度：${plot.twistPerThousand} 次/千字
-- 故事结构：${
-    plot.structure === 'linear' ? '线性顺叙' :
-    plot.structure === 'inverted' ? '倒叙开头' :
-    plot.structure === 'interrupt' ? '插叙补全' : '多线并行'
-  }
+- 故事结构：${plot.structure === 'linear' ? '线性顺叙' :
+        plot.structure === 'inverted' ? '倒叙开头' :
+          plot.structure === 'interrupt' ? '插叙补全' : '多线并行'
+      }
 ${plot.forceConflictAtStart ? '- 开篇强制冲突\n' : ''}${plot.seedForeshadow ? '- 需要埋下关键伏笔\n' : ''}
 
 ### 节奏

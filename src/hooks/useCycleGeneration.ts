@@ -3,7 +3,7 @@ import { useStore } from '../store/useStore';
 import { callModel, getActiveModel } from './useModelCall';
 import { usePromptBuilder } from './usePromptBuilder';
 import { CYCLE_CONFIG } from './constants';
-import { GenerationParams } from '../types';
+import { GenerationParams, CycleResult } from '../types';
 
 export const useCycleGeneration = () => {
   const { config, generation, setGeneration } = useStore();
@@ -37,7 +37,7 @@ export const useCycleGeneration = () => {
       const { addWork, setCurrentWork } = useStore.getState();
       const now = Date.now();
       const newWorkId = `work-${now}`;
-      
+
       addWork({
         id: newWorkId,
         title: params.title || params.topic || "未命名作品",
@@ -54,7 +54,7 @@ export const useCycleGeneration = () => {
         content: '',
         generationParams: params,
       });
-      
+
       // 设置当前作品ID
       setCurrentWork(newWorkId);
 
@@ -62,12 +62,12 @@ export const useCycleGeneration = () => {
       const stage1Model = getActiveModel(config.stage1);
       const stage1Prompt = buildStage1Prompt(params);
 
-       setGeneration({
-         currentStage: 1,
-         currentCycle: 1,
-         isGeneratingStage: 'stage1',
-       });
-       let stage1Result = '';
+      setGeneration({
+        currentStage: 1,
+        currentCycle: 1,
+        isGeneratingStage: 1,
+      });
+      let stage1Result = '';
       let currentContent = '';
       for (let i = 0; i < CYCLE_CONFIG.stage1.cycles; i++) {
         if (signal.aborted) break;
@@ -85,96 +85,96 @@ export const useCycleGeneration = () => {
           completedCycles: i + 1,
           cycleResults: [
             ...generation.cycleResults,
-            { stage: 1, cycle: i + 1, content: cycleResult },
+            { stage: 1, cycle: i + 1, result: cycleResult, createdAt: Date.now() } as CycleResult,
           ],
         });
-       }
+      }
 
-       // Stage 2: 血肉填充
-       const stage2Model = getActiveModel(config.stage2);
-       const currentWordCount = 0; // 第一轮从头开始
-       const stage2Prompt = buildStage2Prompt(stage1Result, params, currentWordCount);
+      // Stage 2: 血肉填充
+      const stage2Model = getActiveModel(config.stage2);
+      const currentWordCount = 0; // 第一轮从头开始
+      const stage2Prompt = buildStage2Prompt(stage1Result, params, currentWordCount);
 
+      setGeneration({
+        currentStage: 2,
+        currentCycle: 1,
+        isGeneratingStage: 2,
+      });
+
+      let currentContentStage2 = '';
+      for (let i = 0; i < CYCLE_CONFIG.stage2.cycles; i++) {
+        if (signal.aborted) break;
+
+        const cyclePrompt = i === 0
+          ? stage2Prompt
+          : `${stage2Prompt}\n\n已经写到这里：\n${currentContentStage2}\n\n请继续往下写。`;
+
+        const cycleResult = await callModel(cyclePrompt, stage2Model, signal);
+        currentContentStage2 += cycleResult;
         setGeneration({
-          currentStage: 2,
-          currentCycle: 1,
-          isGeneratingStage: 'stage2',
+          stage2Result: currentContentStage2,
+          currentCycle: i + 1,
+          completedCycles: CYCLE_CONFIG.stage1.cycles + (i + 1),
+          cycleResults: [
+            ...generation.cycleResults,
+            { stage: 2, cycle: i + 1, result: cycleResult, createdAt: Date.now() } as CycleResult,
+          ],
         });
+      }
 
-        let currentContentStage2 = '';
-       for (let i = 0; i < CYCLE_CONFIG.stage2.cycles; i++) {
-         if (signal.aborted) break;
+      // Stage 3: 去AI化打磨
+      const stage3Model = getActiveModel(config.stage3);
+      const stage3Prompt = buildStage3Prompt(currentContentStage2, params);
 
-         const cyclePrompt = i === 0
-           ? stage2Prompt
-           : `${stage2Prompt}\n\n已经写到这里：\n${currentContentStage2}\n\n请继续往下写。`;
+      setGeneration({
+        currentStage: 3,
+        currentCycle: 1,
+        isGeneratingStage: 3,
+      });
 
-         const cycleResult = await callModel(cyclePrompt, stage2Model, signal);
-         currentContentStage2 += cycleResult;
-         setGeneration({
-           stage2Result: currentContentStage2,
-           currentCycle: i + 1,
-           completedCycles: CYCLE_CONFIG.stage1.cycles + (i + 1),
-           cycleResults: [
-             ...generation.cycleResults,
-             { stage: 2, cycle: i + 1, content: cycleResult },
-           ],
-         });
-       }
+      let stage3Result = '';
+      let currentContentStage3 = currentContentStage2;
+      for (let i = 0; i < CYCLE_CONFIG.stage3.cycles; i++) {
+        if (signal.aborted) break;
 
-       // Stage 3: 去AI化打磨
-       const stage3Model = getActiveModel(config.stage3);
-       const stage3Prompt = buildStage3Prompt(currentContentStage2, params);
+        const cyclePrompt = i === 0
+          ? stage3Prompt
+          : `${stage3Prompt}\n\n当前版本：\n${currentContentStage3}\n\n请继续打磨优化。`;
 
+        const cycleResult = await callModel(cyclePrompt, stage3Model, signal);
+        currentContentStage3 = cycleResult;
+        stage3Result = currentContentStage3;
         setGeneration({
-          currentStage: 3,
-          currentCycle: 1,
-          isGeneratingStage: 'stage3',
+          stage3Result: currentContentStage3,
+          currentCycle: i + 1,
+          completedCycles: CYCLE_CONFIG.stage1.cycles + CYCLE_CONFIG.stage2.cycles + (i + 1),
+          cycleResults: [
+            ...generation.cycleResults,
+            { stage: 3, cycle: i + 1, result: cycleResult, createdAt: Date.now() } as CycleResult,
+          ],
         });
+      }
 
-        let stage3Result = '';
-       let currentContentStage3 = currentContentStage2;
-       for (let i = 0; i < CYCLE_CONFIG.stage3.cycles; i++) {
-         if (signal.aborted) break;
+      setGeneration({
+        stage3Result,
+        completedCycles: CYCLE_CONFIG.total,
+        isGenerating: false,
+        isGeneratingStage: null,
+      });
 
-         const cyclePrompt = i === 0
-           ? stage3Prompt
-           : `${stage3Prompt}\n\n当前版本：\n${currentContentStage3}\n\n请继续打磨优化。`;
+      // 创作完成，更新作品状态为已完成，并更新内容
+      const { updateWork, currentWorkId } = useStore.getState();
+      const wordCount = stage3Result.length;
+      const completedAt = Date.now();
 
-         const cycleResult = await callModel(cyclePrompt, stage3Model, signal);
-         currentContentStage3 = cycleResult;
-         stage3Result = currentContentStage3;
-         setGeneration({
-           stage3Result: currentContentStage3,
-           currentCycle: i + 1,
-           completedCycles: CYCLE_CONFIG.stage1.cycles + CYCLE_CONFIG.stage2.cycles + (i + 1),
-           cycleResults: [
-             ...generation.cycleResults,
-             { stage: 3, cycle: i + 1, content: cycleResult },
-           ],
-         });
-       }
-
-        setGeneration({
-          stage3Result,
-          completedCycles: CYCLE_CONFIG.total,
-          isGenerating: false,
-          isGeneratingStage: null,
+      if (currentWorkId) {
+        updateWork(currentWorkId, {
+          status: 'completed',
+          actualWordCount: wordCount,
+          content: stage3Result,
+          updatedAt: completedAt,
         });
-
-        // 创作完成，更新作品状态为已完成，并更新内容
-        const { updateWork, currentWorkId } = useStore.getState();
-        const wordCount = stage3Result.length;
-        const completedAt = Date.now();
-        
-        if (currentWorkId) {
-          updateWork(currentWorkId, {
-            status: 'completed',
-            actualWordCount: wordCount,
-            content: stage3Result,
-            updatedAt: completedAt,
-          });
-        }
+      }
 
     } catch (error) {
       if ((error as Error).message !== '生成已终止') {
@@ -195,8 +195,14 @@ export const useCycleGeneration = () => {
     });
   }, [setGeneration]);
 
+  const regenerateStageCycle = useCallback((stage: number, cycle: number) => {
+    // Implementation to be added later if needed
+    console.log(`Regenerate stage ${stage} cycle ${cycle}`);
+  }, []);
+
   return {
     startGeneration,
     stopGeneration,
+    regenerateStageCycle,
   };
 };

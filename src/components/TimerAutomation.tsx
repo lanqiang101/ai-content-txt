@@ -1,24 +1,14 @@
 import React, { useState, useEffect } from "react";
-import { Clock, Play, Square, Plus, X, Loader2 } from "lucide-react";
+import { Clock, Plus, X, Loader2 } from "lucide-react";
 import { useStore } from "../store/useStore";
 import { useGeneration } from "../hooks/useGeneration";
 import { CYCLE_CONFIG } from "../hooks/constants";
-import {
-  defaultReaderConfig,
-  defaultCharacterConfig,
-  defaultPlotConfig,
-  defaultRhythmConfig,
-  defaultDetailConfig,
-  defaultEmotionConfig,
-  defaultAntiAIConfig,
-} from "../store/useStore";
 
 export const TimerAutomation: React.FC = () => {
   const {
     timerAutomation,
     setTimerAutomation,
     resetGeneration,
-    setParams,
     generation,
   } = useStore();
   const { runAllCycles, generateCandidates } = useGeneration();
@@ -52,7 +42,7 @@ export const TimerAutomation: React.FC = () => {
 
   const triggerNextGeneration = async () => {
     // 获取最新状态，使用局部变量判断
-    const { timerAutomation: currentTimer } = useStore.getState();
+    const { timerAutomation: currentTimer, params } = useStore.getState();
     if (isGenerating || hasReachedTarget || !currentTimer.isRunning) return;
 
     // 重置生成状态，准备下一本
@@ -62,49 +52,35 @@ export const TimerAutomation: React.FC = () => {
     try {
       // 随机选择主题和字数
       const randomTheme =
-        timerAutomation.themes.length > 0
-          ? timerAutomation.themes[
-              Math.floor(Math.random() * timerAutomation.themes.length)
+        currentTimer.themes.length > 0
+          ? currentTimer.themes[
+              Math.floor(Math.random() * currentTimer.themes.length)
             ]
           : "都市生活";
       const randomWordCount = Math.floor(
         Math.random() *
-          (timerAutomation.maxWordCount - timerAutomation.minWordCount) +
-          timerAutomation.minWordCount,
+          (currentTimer.maxWordCount - currentTimer.minWordCount) +
+          currentTimer.minWordCount
       );
 
-       // 批量创作使用独立参数，不修改单次创作参数
-       // 兼容旧数据，如果params不存在则使用默认值
-       const batchParams = timerAutomation.params || {
-         type: 'novel',
-         topic: '',
-         title: '',
-         keywords: '',
-         wordCount: 1500,
-         style: '',
-         reader: defaultReaderConfig,
-         character: defaultCharacterConfig,
-         plot: defaultPlotConfig,
-         rhythm: defaultRhythmConfig,
-         detail: defaultDetailConfig,
-         emotion: defaultEmotionConfig,
-         antiAI: defaultAntiAIConfig,
-       };
+      // 批量创作复用右侧公共基础参数，不需要单独配置
+      // 只覆盖主题和字数，其他参数复用公共配置
+      const { reader, character, plot, rhythm, detail, emotion, antiAI, style, type } = params;
 
-       // 设置批量参数到store进行生成
-       setParams({
-         type: batchParams.type,
-         topic: randomTheme,
-         wordCount: randomWordCount,
-         style: batchParams.style,
-         reader: batchParams.reader,
-         character: batchParams.character,
-         plot: batchParams.plot,
-         rhythm: batchParams.rhythm,
-         detail: batchParams.detail,
-         emotion: batchParams.emotion,
-         antiAI: batchParams.antiAI,
-       });
+      // 设置参数（主题和字数使用批量随机，其他复用公共参数）
+      useStore.getState().setParams({
+        type,
+        topic: randomTheme,
+        wordCount: randomWordCount,
+        style,
+        reader,
+        character,
+        plot,
+        rhythm,
+        detail,
+        emotion,
+        antiAI,
+      });
 
       // 先生成吸引读者的标题
       let generatedTitle = `${randomTheme}的意外故事`;
@@ -113,7 +89,7 @@ export const TimerAutomation: React.FC = () => {
         const titleResults = await generateCandidates(
           `根据主题生成吸引人的小说标题`,
           `主题是：${randomTheme}。请生成3个不同风格的小说标题，标题要吸引读者点击，突出爽点和钩子。每行一个标题，不要其他文字。`,
-          3,
+          3
         );
         if (titleResults.length > 0) {
           // 随机选一个
@@ -124,14 +100,9 @@ export const TimerAutomation: React.FC = () => {
         console.error("Generate title failed, use default:", error);
       }
 
-      // 更新标题到批量参数
+      // 更新批量参数记录当前信息
       setTimerAutomation({
-        params: {
-          ...timerAutomation.params,
-          topic: randomTheme,
-          title: generatedTitle,
-          wordCount: randomWordCount,
-        },
+        ...currentTimer,
       });
 
       // 清除当前工作ID，这样generateNextCycle会自动创建新作品并添加到作品管理
@@ -144,29 +115,14 @@ export const TimerAutomation: React.FC = () => {
       setGeneratedCount((prev) => prev + 1);
 
       // 如果达到目标数量，自动停止
-      if (generatedCount + 1 >= timerAutomation.bookCount) {
-        stopAutomation();
+      if (generatedCount + 1 >= currentTimer.bookCount) {
+        setTimerAutomation({ isRunning: false });
       }
     } catch (error) {
       console.error("Auto generation error:", error);
     } finally {
       setIsGenerating(false);
     }
-  };
-
-  const startAutomation = () => {
-    resetGeneration();
-    setGeneratedCount(0);
-    setTimerAutomation({ isRunning: true });
-    // 直接开始第一本，使用 setTimeout 让状态更新后再执行
-    setTimeout(() => {
-      triggerNextGeneration();
-    }, 500);
-  };
-
-  const stopAutomation = () => {
-    setTimerAutomation({ isRunning: false });
-    setIsGenerating(false);
   };
 
   const addTheme = () => {
@@ -186,11 +142,17 @@ export const TimerAutomation: React.FC = () => {
 
   return (
     <div className="space-y-4">
+      <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+        <p className="text-sm text-blue-700 dark:text-blue-300">
+          💡 批量自动创作会复用<strong>右侧公共基础参数</strong>，无需重复配置。只需要设置批量创作特有选项，启动后会自动连续生成直到完成目标数量，上一本完成直接开始下一本。
+        </p>
+      </div>
+
       {/* 创作数量 */}
       <div className="grid grid-cols-1 gap-4">
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-            创作数量（自动连续生成，直到完成）
+          创作数量（自动连续生成，直到完成）
           </label>
           <input
             type="number"
@@ -247,7 +209,7 @@ export const TimerAutomation: React.FC = () => {
       {/* 创作主题 */}
       <div>
         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-          创作主题（回车添加）
+          创作主题（回车添加，随机抽取）
         </label>
         <div className="flex flex-wrap gap-2 mb-2">
           {timerAutomation.themes.map((theme, index) => (
@@ -284,163 +246,6 @@ export const TimerAutomation: React.FC = () => {
             <Plus size={18} className="text-gray-600 dark:text-gray-400" />
           </button>
         </div>
-      </div>
-
-      {/* ========== 批量创作独立基础参数 ========== */}
-      <div className="border-t border-gray-200 dark:border-slate-700 pt-4 mt-4">
-        <h4 className="text-sm font-semibold text-gray-800 dark:text-gray-100 mb-4 flex items-center gap-2">
-          <span className="w-1 h-4 bg-primary rounded-full"></span>
-          基础创作参数（独立配置，不影响单次创作）
-        </h4>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* 读者定位分组 */}
-          <div className="space-y-3">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                读者年龄层
-              </label>
-              <input
-                type="text"
-                value={timerAutomation.params?.reader?.ageRange || ""}
-                onChange={(e) =>
-                  setTimerAutomation({
-                    params: {
-                      ...timerAutomation.params,
-                      reader: {
-                        ...(timerAutomation.params?.reader || {}),
-                        ageRange: e.target.value,
-                      },
-                    },
-                  })
-                }
-                className="w-full px-3 py-2 border border-gray-200 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 bg-white/80 dark:bg-slate-700/80 text-gray-900 dark:text-gray-100"
-                placeholder="18-25岁"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                核心追读诉求
-              </label>
-              <input
-                type="text"
-                value={timerAutomation.params?.reader?.coreAppeal || ""}
-                onChange={(e) =>
-                  setTimerAutomation({
-                    params: {
-                      ...timerAutomation.params,
-                      reader: {
-                        ...(timerAutomation.params?.reader || {}),
-                        coreAppeal: e.target.value,
-                      },
-                    },
-                  })
-                }
-                className="w-full px-3 py-2 border border-gray-200 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 bg-white/80 dark:bg-slate-700/80 text-gray-900 dark:text-gray-100"
-                placeholder="爽点 / 泪点 / 悬疑感"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                性别偏好
-              </label>
-              <select
-                value={
-                  timerAutomation.params?.reader?.genderPreference || "male"
-                }
-                onChange={(e) =>
-                  setTimerAutomation({
-                    params: {
-                      ...timerAutomation.params,
-                      reader: {
-                        ...(timerAutomation.params?.reader || {}),
-                        genderPreference: e.target.value as any,
-                      },
-                    },
-                  })
-                }
-                className="w-full px-3 py-2 border border-gray-200 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 bg-white/80 dark:bg-slate-700/80 text-gray-900 dark:text-gray-100"
-              >
-                <option value="male">男频</option>
-                <option value="female">女频</option>
-                <option value="all">通用</option>
-              </select>
-            </div>
-          </div>
-
-          {/* 人物深度分组 */}
-          <div className="space-y-3">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                核心缺陷锚点
-              </label>
-              <input
-                type="text"
-                value={timerAutomation.params?.character?.coreFlaw || ""}
-                onChange={(e) =>
-                  setTimerAutomation({
-                    params: {
-                      ...timerAutomation.params,
-                      character: {
-                        ...(timerAutomation.params?.character || {}),
-                        coreFlaw: e.target.value,
-                      },
-                    },
-                  })
-                }
-                className="w-full px-3 py-2 border border-gray-200 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 bg-white/80 dark:bg-slate-700/80 text-gray-900 dark:text-gray-100"
-                placeholder="懦弱 / 偏执"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                人物弧光
-              </label>
-              <select
-                value={timerAutomation.params?.character?.arcType || "none"}
-                onChange={(e) =>
-                  setTimerAutomation({
-                    params: {
-                      ...timerAutomation.params,
-                      character: {
-                        ...(timerAutomation.params?.character || {}),
-                        arcType: e.target.value as any,
-                      },
-                    },
-                  })
-                }
-                className="w-full px-3 py-2 border border-gray-200 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 bg-white/80 dark:bg-slate-700/80 text-gray-900 dark:text-gray-100"
-              >
-                <option value="none">无弧光 / 不变态</option>
-                <option value="positive">成长弧光</option>
-                <option value="fall">堕落弧光</option>
-                <option value="complex">复杂反转</option>
-              </select>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* 启动/停止按钮 */}
-      <div className="flex gap-3 pt-4">
-        {!timerAutomation.isRunning ? (
-          <button
-            onClick={startAutomation}
-            disabled={timerAutomation.themes.length === 0}
-            className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-primary hover:bg-primary/90 disabled:bg-gray-300 disabled:cursor-not-allowed text-white rounded-lg transition-colors"
-          >
-            <Play size={18} />
-            开始自动批量创作
-          </button>
-        ) : (
-          <button
-            onClick={stopAutomation}
-            className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors"
-          >
-            <Square size={18} />
-            停止自动创作
-          </button>
-        )}
       </div>
 
       {/* 进度显示 */}

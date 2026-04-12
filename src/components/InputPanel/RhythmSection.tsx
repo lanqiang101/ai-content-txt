@@ -9,6 +9,16 @@ interface RhythmSectionProps {
 }
 
 export const RhythmSection: React.FC<RhythmSectionProps> = ({ rhythm, onChange }) => {
+  const defaultRhythm: RhythmConfig = {
+    alternation: '3段平淡 + 1段高潮',
+    climaxDensity: '每3k字小高潮，每1w字中高潮',
+    chapterEndHook: true,
+    conflictFrequency: 50,
+    bufferNodes: true,
+    averageParaLength: 'short',
+  };
+  const safeRhythm = rhythm ?? defaultRhythm;
+
   return (
     <details className="group open rounded-xl border border-gray-200 dark:border-slate-600 p-4">
       <summary className="cursor-pointer font-medium text-gray-800 dark:text-gray-100">
@@ -23,7 +33,7 @@ export const RhythmSection: React.FC<RhythmSectionProps> = ({ rhythm, onChange }
           </div>
           <div className="relative">
             <select
-              value={rhythm.averageParaLength}
+              value={safeRhythm.averageParaLength}
               onChange={(e) =>
                 onChange({ averageParaLength: e.target.value as any })
               }
@@ -50,7 +60,7 @@ export const RhythmSection: React.FC<RhythmSectionProps> = ({ rhythm, onChange }
         <div>
           <div className="flex items-center justify-between">
             <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">
-              冲突频率: {rhythm.conflictFrequency}%
+              冲突频率: {safeRhythm.conflictFrequency}%
             </label>
             <div className="absolute right-1 top-1/2 -translate-y-1/2">
               <RandomSliderButton
@@ -65,7 +75,7 @@ export const RhythmSection: React.FC<RhythmSectionProps> = ({ rhythm, onChange }
             type="range"
             min="0"
             max="100"
-            value={rhythm.conflictFrequency}
+            value={safeRhythm.conflictFrequency}
             onChange={(e) =>
               onChange({ conflictFrequency: parseInt(e.target.value) })
             }
@@ -81,7 +91,7 @@ export const RhythmSection: React.FC<RhythmSectionProps> = ({ rhythm, onChange }
           </label>
           <input
             type="checkbox"
-            checked={rhythm.bufferNodes}
+            checked={safeRhythm.bufferNodes}
             onChange={(e) =>
               onChange({ bufferNodes: e.target.checked })
             }

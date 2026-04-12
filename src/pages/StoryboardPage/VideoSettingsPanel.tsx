@@ -1,12 +1,12 @@
 import React from "react";
-import { VideoSettings, DistributionChannel, StoryboardStyle } from "../../types";
+import { VideoSettings, DistributionChannel, AnimeStyle } from "../../types";
 import { RESOLUTION_OPTIONS, FPS_OPTIONS, CHANNEL_OPTIONS, STYLE_OPTIONS, STYLE_LABELS } from "./constants";
 
 interface VideoSettingsPanelProps {
   settings: VideoSettings;
   onChange: (settings: Partial<VideoSettings>) => void;
-  style: StoryboardStyle;
-  onStyleChange: (style: StoryboardStyle) => void;
+  style: AnimeStyle;
+  onStyleChange: (style: AnimeStyle) => void;
   tone: string;
   onToneChange: (tone: string) => void;
 }
@@ -49,10 +49,10 @@ export const VideoSettingsPanel: React.FC<VideoSettingsPanelProps> = ({
           </label>
           <select
             value={settings.fps}
-            onChange={(e) => onChange({ fps: parseInt(e.target.value) })}
+            onChange={(e) => onChange({ fps: parseInt(e.target.value) as 24 | 30 | 60 })}
             className="w-full px-3 py-2 border border-gray-200 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 bg-white/80 dark:bg-slate-700/80 text-gray-900 dark:text-gray-100"
           >
-            {FPS_OPTIONS.map((fps) => (
+            {FPS_OPTIONS.map((fps: number) => (
               <option key={fps} value={fps}>
                 {fps} FPS
               </option>
@@ -65,7 +65,7 @@ export const VideoSettingsPanel: React.FC<VideoSettingsPanelProps> = ({
             分发平台
           </label>
           <div className="flex flex-wrap gap-2">
-            {CHANNEL_OPTIONS.map((channel) => (
+            {CHANNEL_OPTIONS.map((channel: DistributionChannel) => (
               <button
                 key={channel}
                 onClick={() => onChange({ distributionChannel: channel })}
@@ -86,7 +86,7 @@ export const VideoSettingsPanel: React.FC<VideoSettingsPanelProps> = ({
             画面风格
           </label>
           <div className="grid grid-cols-2 gap-2">
-            {STYLE_OPTIONS.map((styleOption) => (
+            {STYLE_OPTIONS.map((styleOption: AnimeStyle) => (
               <button
                 key={styleOption}
                 onClick={() => onStyleChange(styleOption)}

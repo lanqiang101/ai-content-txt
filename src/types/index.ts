@@ -3,20 +3,28 @@ export type ModelMode = 'local' | 'api';
 export type WorkStatus = 'drafting' | 'completed' | 'failed' | 'archived';
 export type StoryboardStyle = 'realistic' | 'anime' | 'ink' | '3d' | 'cartoon';
 
+// 分镜类型区分
+export type StoryboardType = 'drama' | 'comic';
+// drama = 漫剧（动态视频分镜，每个镜头有持续时间，用于生成短视频）
+// comic = 漫画（静态分镜，每个分镜一格/一页，用于生成漫画）
+
 export interface ModelConfig {
-  id: string;
+  id: number;
   name: string;
-  mode: ModelMode;
-  localUrl: string;
-  apiUrl: string;
+  mode?: ModelMode;
+  localUrl?: string;
+  apiUrl?: string;
   modelName: string;
   apiKey?: string;
+  baseUrl?: string;
+  maxTokens?: number;
+  temperature?: number;
   enabled: boolean;
 }
 
 export interface StageModelConfig {
   models: ModelConfig[];
-  activeModelId: string;
+  activeModelId: number;
 }
 
 export interface PipelineConfig {
@@ -191,6 +199,7 @@ export interface OptimizationHistory {
   createdAt: number;
 }
 
+// 漫剧视频配置（原有保留扩展）
 export interface VideoSettings {
   resolution: '1920x1080' | '1280x720' | '720x1280' | '1080x1920';
   aspectRatio: '16:9' | '9:16' | '1:1';
@@ -202,17 +211,27 @@ export interface VideoSettings {
   distributionChannel: DistributionChannel;
 }
 
-export type DistributionChannel = 
-  | '抖音' 
-  | '快手' 
-  | 'B站' 
-  | '视频号' 
-  | '小红书' 
-  | 'YouTube' 
+// 漫画专属配置
+export interface ComicSettings {
+  comicFormat: 'vertical_strip' | 'horizontal_page';
+  frameCount: number;
+  frameLayout: 'vertical' | 'horizontal' | 'mixed' | 'closeup_lead';
+  readOrder: 'top_to_bottom' | 'right_to_left' | 'left_to_right';
+  aspectRatio: '1:1' | '16:9' | '9:16' | '4:3';
+  outputFormat: 'png' | 'jpg' | 'webp';
+}
+
+export type DistributionChannel =
+  | '抖音'
+  | '快手'
+  | 'B站'
+  | '视频号'
+  | '小红书'
+  | 'YouTube'
   | 'TikTok'
   | '多平台';
 
-export type AnimeStyle = 
+export type AnimeStyle =
   | 'anime'
   | 'realistic'
   | 'ink'
@@ -252,12 +271,43 @@ export interface Character {
   updatedAt: number;
 }
 
-export interface SceneDesc {
-  name: string;
-  description: string;
-  background: string;
-  lighting: string;
-  mood: string;
+// 统一分镜配置基类 - 添加 style 属性到基类
+export interface StoryboardConfigBase {
+  workId: string;
+  chapterNumber?: number;
+  tone: string;
+  artStyle: string;
+  colorStyle: string;
+  style: AnimeStyle;
+  type: StoryboardType;
+  prohibitedContent?: string;
+  detailLevel?: string;
+  lensEmotion?: string;
+}
+
+// 漫剧分镜配置
+export interface DramaStoryboardConfig extends StoryboardConfigBase {
+  type: 'drama';
+  videoSettings: VideoSettings;
+  rhythm: 'slow' | 'medium' | 'fast';
+}
+
+// 漫画分镜配置
+export interface ComicStoryboardConfig extends StoryboardConfigBase {
+  type: 'comic';
+  comicSettings: ComicSettings;
+}
+
+// 联合类型：config 根据 type 不同有不同扩展
+export type StoryboardConfig = DramaStoryboardConfig | ComicStoryboardConfig;
+
+export interface StoryboardResult {
+  id: string;
+  workId: string;
+  chapterNumber: number;
+  config: StoryboardConfig;
+  scenes: SceneDesc[];
+  createdAt: number;
 }
 
 export interface GenerationParamsInfo {
@@ -265,45 +315,6 @@ export interface GenerationParamsInfo {
   topic: string;
   keywords: string;
   params?: GenerationParams;
-}
-
-export interface StoryboardConfig {
-  workId: string;
-  chapterNumber?: number;
-  duration: number;
-  clipsPerEpisode: number;
-  clipDuration: number;
-  mainCharacter: CharacterDesc;
-  supportingCharacters: CharacterDesc[];
-  scenes: SceneDesc[];
-  videoSettings: VideoSettings;
-  style: StoryboardStyle;
-  tone: string;
-  previousContent?: string;
-  globalInfo?: GenerationParamsInfo;
-}
-
-export interface StoryboardPrompt {
-  id: string;
-  workId: string;
-  chapterNumber?: number;
-  clipNumber: number;
-  scene: string;
-  visual: string;
-  duration: number;
-  camera: string;
-  audio: string;
-  lighting: string;
-  createdAt: number;
-}
-
-export interface StoryboardResult {
-  id: string;
-  workId: string;
-  config: StoryboardConfig;
-  prompts: StoryboardPrompt[];
-  totalDuration: number;
-  createdAt: number;
 }
 
 export interface CycleState {
@@ -340,7 +351,7 @@ export interface ContentHistory {
   id: string;
   type: ContentType;
   topic: string;
-  result: string;
+  result: GenerationParams;
   createdAt: number;
 }
 
@@ -351,18 +362,7 @@ export interface BatchAutomationConfig {
   minWordCount: number;
   maxWordCount: number;
   themes: string[];
-  intervalMinutes: number;
   isRunning: boolean;
   // 批量创作独立参数配置 - 完全独立于单次创作
-  params: {
-    type: ContentType;
-    style: string;
-    reader: ReaderConfig;
-    character: CharacterConfig;
-    plot: PlotConfig;
-    rhythm: RhythmConfig;
-    detail: DetailConfig;
-    emotion: EmotionConfig;
-    antiAI: AntiAIConfig;
-  };
+  params: GenerationParams;
 }

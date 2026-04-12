@@ -60,10 +60,10 @@ export const CharacterListPage: React.FC = () => {
             <ChevronLeft size={16} />
             返回
           </Button>
-          {/* <Button onClick={() => navigate("/characters/new")}>
-            <Plus size={16} />
+          <Button variant="primary" onClick={() => navigate("/characters/new")}>
+            <Plus size={16} className="mr-1" />
             新建角色
-          </Button> */}
+          </Button>
         </div>
       </div>
 
@@ -95,10 +95,10 @@ export const CharacterListPage: React.FC = () => {
             <p className="text-gray-500 dark:text-gray-400 mb-2">
               {characters.length === 0 ? "暂无角色" : "没有找到匹配的角色"}
             </p>
-            {/* <Button onClick={() => navigate("/characters/new")}>
-              <Plus size={16} />
+            <Button variant="primary" onClick={() => navigate("/characters/new")}>
+              <Plus size={16} className="mr-1" />
               创建第一个角色
-            </Button> */}
+            </Button>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 p-4">

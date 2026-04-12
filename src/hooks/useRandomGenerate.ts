@@ -36,7 +36,7 @@ export const useRandomGenerate = () => {
 
       let result: string;
 
-      if (modelConfig.mode === 'local') {
+      if (modelConfig.mode === 'local' && modelConfig.localUrl) {
         // 确保 localUrl 没有尾随斜杠，然后拼接正确路径
         const baseUrl = modelConfig.localUrl.replace(/\/$/, '');
         const response = await fetch(`${baseUrl}/api/generate`, {
@@ -60,7 +60,7 @@ export const useRandomGenerate = () => {
 
         const data = await response.json();
         result = data.response;
-      } else {
+      } else if (modelConfig.apiUrl) {
         // Ensure the API URL is absolute - if it starts with /, it's a local proxy path (Vite dev proxy)
         let apiUrl = modelConfig.apiUrl;
         if (apiUrl.startsWith('/')) {
@@ -102,6 +102,8 @@ export const useRandomGenerate = () => {
 
         const data = await response.json();
         result = data.choices[0].message.content;
+      } else {
+        throw new Error('未配置模型');
       }
 
       // 尝试解析JSON，提取candidates
