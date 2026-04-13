@@ -15,7 +15,7 @@ export default function (db) {
     try {
       const config = req.body;
       const now = Date.now();
-      const stmt = db.prepare(`INSERT INTO pipeline_config (id, name, config, created_at, updated_at) VALUES (?, ?, ?, ?, ?)`);
+      const stmt = db.prepare('INSERT INTO pipeline_config (id, name, config, created_at, updated_at) VALUES (?, ?, ?, ?, ?)');
       stmt.run(config.id, config.name, JSON.stringify(config.config), now, now);
       res.json(config);
     } catch (error) {res.status(500).json({error: error.message});}
@@ -25,7 +25,7 @@ export default function (db) {
     try {
       const config = req.body;
       const now = Date.now();
-      const stmt = db.prepare(`UPDATE pipeline_config SET name = ?, config = ?, updated_at = ? WHERE id = ?`);
+      const stmt = db.prepare('UPDATE pipeline_config SET name = ?, config = ?, updated_at = ? WHERE id = ?');
       stmt.run(config.name, JSON.stringify(config.config), now, config.id);
       res.json(config);
     } catch (error) {res.status(500).json({error: error.message});}
@@ -108,18 +108,24 @@ export default function (db) {
       // 兼容前端驼峰命名和后端下划线命名
       const { 
         name, 
-        modelName, model_name,
-        apiKey, api_key,
-        baseUrl, base_url,
-        maxTokens, max_tokens,
+        modelName, 
+        model_name,
+        apiKey, 
+        api_key,
+        baseUrl, 
+        base_url,
+        maxTokens, 
+        max_tokens,
         temperature,
-        mode
+        mode,
+        enabled
       } = req.body;
       const now = Date.now();
       const stmt = db.prepare(`
         INSERT INTO model_config (name, model_name, api_key, base_url, max_tokens, temperature, mode, enabled, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
+      // 数一数：10 columns → 10 params
       const result = stmt.run(
         name ?? null,
         (modelName ?? model_name) ?? null,
@@ -128,11 +134,11 @@ export default function (db) {
         (maxTokens ?? max_tokens) ?? null,
         temperature ?? null,
         mode ?? null,
-        1,
+        enabled !== undefined ? Number(enabled) : 1,
         now,
         now
       );
-      res.json({ id: result.lastInsertRowid, ...req.body, enabled: 1 });
+      res.json({ id: result.lastInsertRowid, ...req.body, enabled: enabled !== undefined ? Number(enabled) : 1 });
     } catch (error) {res.status(500).json({error: error.message});}
   });
 
@@ -141,18 +147,24 @@ export default function (db) {
       // 兼容前端驼峰命名和后端下划线命名
       const { 
         name, 
-        modelName, model_name,
-        apiKey, api_key,
-        baseUrl, base_url,
-        maxTokens, max_tokens,
+        modelName, 
+        model_name,
+        apiKey, 
+        api_key,
+        baseUrl, 
+        base_url,
+        maxTokens, 
+        max_tokens,
         temperature,
-        mode
+        mode,
+        enabled
       } = req.body;
       const now = Date.now();
       const stmt = db.prepare(`
         INSERT INTO model_config (name, model_name, api_key, base_url, max_tokens, temperature, mode, enabled, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
+      // 数一数：10 columns → 10 params
       const result = stmt.run(
         name ?? null,
         (modelName ?? model_name) ?? null,
@@ -161,11 +173,11 @@ export default function (db) {
         (maxTokens ?? max_tokens) ?? null,
         temperature ?? null,
         mode ?? null,
-        1,
+        enabled !== undefined ? Number(enabled) : 1,
         now,
         now
       );
-      res.json({ id: result.lastInsertRowid, ...req.body, enabled: 1 });
+      res.json({ id: result.lastInsertRowid, ...req.body, enabled: enabled !== undefined ? Number(enabled) : 1 });
     } catch (error) {res.status(500).json({error: error.message});}
   });
 
@@ -174,10 +186,14 @@ export default function (db) {
       const { 
         id,
         name, 
-        modelName, model_name,
-        apiKey, api_key,
-        baseUrl, base_url,
-        maxTokens, max_tokens,
+        modelName, 
+        model_name,
+        apiKey, 
+        api_key,
+        baseUrl, 
+        base_url,
+        maxTokens, 
+        max_tokens,
         temperature,
         mode,
         enabled
@@ -213,7 +229,7 @@ export default function (db) {
       // 检查每个参数的类型
       console.log('Update params with types:');
       params.forEach((p, i) => {
-        console.log(`  [${i}] type=${typeof p}, value=`, p);
+        console.log('  [%d] type=%s, value=', i, typeof p, p);
       });
 
       stmt.run(...params);
@@ -243,10 +259,14 @@ export default function (db) {
       const { 
         id,
         name, 
-        modelName, model_name,
-        apiKey, api_key,
-        baseUrl, base_url,
-        maxTokens, max_tokens,
+        modelName, 
+        model_name,
+        apiKey, 
+        api_key,
+        baseUrl, 
+        base_url,
+        maxTokens, 
+        max_tokens,
         temperature,
         mode,
         enabled
@@ -325,7 +345,7 @@ export default function (db) {
     try {
       const value = req.body;
       const now = Date.now();
-      const stmt = db.prepare(`INSERT OR REPLACE INTO app_config (key, value, updated_at) VALUES (?, ?, ?)`);
+      const stmt = db.prepare('INSERT OR REPLACE INTO app_config (key, value, updated_at) VALUES (?, ?, ?)');
       stmt.run(req.params.key, JSON.stringify(value), now);
       res.json(value);
     } catch (error) {res.status(500).json({error: error.message});}
@@ -336,6 +356,10 @@ export default function (db) {
     try {
       const configs = db.prepare('SELECT * FROM app_config').all();
       const result = {};
+      
+      // 存储是 stage1_model_id，读取时需要映射回 stage1 给前端表单绑定
+      const stageKeys = ['stage1_model_id', 'stage2_model_id', 'stage3_model_id', 'random_model_id', 'storyboard_model_id'];
+      
       configs.forEach(row => {
         if (row.value === null) {
           result[row.key] = null;
@@ -343,6 +367,15 @@ export default function (db) {
           result[row.key] = JSON.parse(row.value);
         }
       });
+      
+      // 把 stage1_model_id 的值映射回 stage1 给前端绑定
+      stageKeys.forEach(dbKey => {
+        if (result[dbKey] !== undefined) {
+          const frontKey = dbKey.replace('_model_id', '');
+          result[frontKey] = result[dbKey];
+        }
+      });
+      
       res.json(result);
     } catch (error) {res.status(500).json({error: error.message});}
   });
@@ -353,21 +386,22 @@ export default function (db) {
       const config = req.body.config || req.body;
       const now = Date.now();
       
-      console.log('Saving system config:', Object.keys(config));
+      console.log('Saving system config:', Object.key )     // 需要把短名存储为 {stage1_model_id: modelId, stage2_model_id: modelId, ...}
+      // 只存储转换后的 xxx_model_id 到数据库
+      const stageShortKeys = ['stage1', 'stage2', 'stage3', 'random', 'storyboard'];
       
-      // 前端发送的是 {stage1: modelId, stage2: modelId, ...}
-      // 需要存储为 {stage1_model_id: modelId, stage2_model_id: modelId, ...}
-      const stageKeys = ['stage1', 'stage2', 'stage3', 'random', 'storyboard'];
-      
-      // 批量保存所有配置项，null值特殊处理保证SQLite兼容性
+      // 批量保存所有配置项
       for (const [key, value] of Object.entries(config)) {
-        // 如果是stageX，转换为stageX_model_id存储
-        const dbKey = stageKeys.includes(key) ? `${key}_model_id` : key;
-        const stmt = db.prepare(`INSERT OR REPLACE INTO app_config (key, value, updated_at) VALUES (?, ?, ?)`);
+        let dbKey = key;
+        // 如果是短名如 stage1，转换为 stage1_model_id 存储
+        if (stageShortKeys.includes(key)) {
+          dbKey = key + '_model_id';
+        }
+        const stmt = db.prepare('INSERT OR REPLACE INTO app_config (key, value, updated_at) VALUES (?, ?, ?)');
         // null值直接存储为SQL null，其他值JSON序列化
         const storedValue = value === null ? null : JSON.stringify(value);
         stmt.run(dbKey, storedValue, now);
-        console.log(`  Saved: ${key} → ${dbKey}, value type: ${typeof value}, stored: ${storedValue === null ? 'null' : storedValue}`);
+        console.log('  Saved: %s → %s, value=%s', key, dbKey, JSON.stringify(value));
       }
       
       console.log('System config save completed');
@@ -390,7 +424,7 @@ export default function (db) {
     try {
       const params = req.body;
       const now = Date.now();
-      const stmt = db.prepare(`INSERT INTO generation_params (id, name, params, created_at, updated_at) VALUES (?, ?, ?, ?, ?)`);
+      const stmt = db.prepare('INSERT INTO generation_params (id, name, params, created_at, updated_at) VALUES (?, ?, ?, ?, ?)');
       stmt.run(params.id, params.name, JSON.stringify(params.params), now, now);
       res.json(params);
     } catch (error) {res.status(500).json({error: error.message});}
@@ -400,7 +434,7 @@ export default function (db) {
     try {
       const params = req.body;
       const now = Date.now();
-      const stmt = db.prepare(`UPDATE generation_params SET name = ?, params = ?, updated_at = ? WHERE id = ?`);
+      const stmt = db.prepare('UPDATE generation_params SET name = ?, params = ?, updated_at = ? WHERE id = ?');
       stmt.run(params.name, JSON.stringify(params.params), now, params.id);
       res.json(params);
     } catch (error) {res.status(500).json({error: error.message});}

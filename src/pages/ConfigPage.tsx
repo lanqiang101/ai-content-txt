@@ -27,11 +27,11 @@ import { dbService } from "../services/db";
 import type { ModelConfig } from "../types";
 
 interface SystemConfigData {
-  stage1_model_id: number | null;
-  stage2_model_id: number | null;
-  stage3_model_id: number | null;
-  random_model_id: number | null;
-  storyboard_model_id: number | null;
+  stage1: number | null;
+  stage2: number | null;
+  stage3: number | null;
+  random: number | null;
+  storyboard: number | null;
 }
 
 const stageDefinitions = [
@@ -47,7 +47,11 @@ const stageDefinitions = [
     description: "润色去AI化，让文风更自然",
   },
   { key: "random", label: "随机候选词", description: "生成章节关键词随机候选" },
-  { key: "storyboard", label: "分镜生成", description: "生成视频分镜脚本" },
+  {
+    key: "storyboard",
+    label: "分镜生成",
+    description: "生成视频、漫画分镜脚本",
+  },
 ] as const;
 
 export const ConfigPage: React.FC = () => {
@@ -58,11 +62,11 @@ export const ConfigPage: React.FC = () => {
   const [availableModels, setAvailableModels] = useState<ModelConfig[]>([]);
   const [activeTab, setActiveTab] = useState("stage1");
   const [config, setLocalConfig] = useState<SystemConfigData>({
-    stage1_model_id: null,
-    stage2_model_id: null,
-    stage3_model_id: null,
-    random_model_id: null,
-    storyboard_model_id: null,
+    stage1: null,
+    stage2: null,
+    stage3: null,
+    random: null,
+    storyboard: null,
   });
 
   // 页面加载时从后端加载
@@ -79,12 +83,13 @@ export const ConfigPage: React.FC = () => {
         // 加载已保存的系统配置
         const systemConfig = await dbService.getSystemConfig();
         if (systemConfig) {
+          console.log("✅ 加载了系统配置", systemConfig);
           setLocalConfig({
-            stage1_model_id: systemConfig.stage1_model_id || null,
-            stage2_model_id: systemConfig.stage2_model_id || null,
-            stage3_model_id: systemConfig.stage3_model_id || null,
-            random_model_id: systemConfig.random_model_id || null,
-            storyboard_model_id: systemConfig.storyboard_model_id || null,
+            stage1: systemConfig.stage1_model_id || null,
+            stage2: systemConfig.stage2_model_id || null,
+            stage3: systemConfig.stage3_model_id || null,
+            random: systemConfig.random_model_id || null,
+            storyboard: systemConfig.storyboard_model_id || null,
           });
         }
       } catch (err) {
@@ -96,6 +101,7 @@ export const ConfigPage: React.FC = () => {
     };
     loadData();
   }, []);
+  console.log(config, "config", stageDefinitions);
 
   // 保存配置到后端
   const saveConfig = async () => {
@@ -212,8 +218,10 @@ export const ConfigPage: React.FC = () => {
                   <Select
                     value={
                       config[stage.key as keyof SystemConfigData] != null
-                        ? config[stage.key as keyof SystemConfigData]!.toString()
-                        : "null"
+                        ? config[
+                            stage.key as keyof SystemConfigData
+                          ]!.toString()
+                        : undefined
                     }
                     onValueChange={(value) =>
                       updateStageModel(
@@ -223,7 +231,19 @@ export const ConfigPage: React.FC = () => {
                     }
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder="请选择一个模型" />
+                      {config[stage.key as keyof SystemConfigData] != null ? (
+                        <SelectValue>
+                          {getModelById(
+                            config[stage.key as keyof SystemConfigData],
+                          )
+                            ? `${getModelById(config[stage.key as keyof SystemConfigData])!.name} (${getModelById(config[stage.key as keyof SystemConfigData])!.modelName})`
+                            : config[
+                                stage.key as keyof SystemConfigData
+                              ]!.toString()}
+                        </SelectValue>
+                      ) : (
+                        <SelectValue placeholder="请选择一个模型" />
+                      )}
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="null">(不选择)</SelectItem>
@@ -288,7 +308,7 @@ export const ConfigPage: React.FC = () => {
                         </span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-gray-50 dark:text-gray-400">
+                        <span className="text-gray-500 dark:text-gray-400">
                           最大 Tokens
                         </span>
                         <span className="font-medium text-gray-900 dark:text-gray-100">
