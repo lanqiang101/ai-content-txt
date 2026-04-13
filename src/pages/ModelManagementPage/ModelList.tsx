@@ -41,7 +41,7 @@ export const ModelList: React.FC<ModelListProps> = ({
                 名称
               </th>
               <th className="text-left px-6 py-3 text-sm font-medium text-gray-600 dark:text-gray-300">
-                模型标识
+                模型ID
               </th>
               <th className="text-left px-6 py-3 text-sm font-medium text-gray-600 dark:text-gray-300">
                 温度

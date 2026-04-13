@@ -48,7 +48,8 @@ const OutputPanel: React.FC<OutputPanelProps> = ({
   const generation = useStore((state) => state.generation);
   const isGeneratingThis =
     generation.currentStage === stage && generation.isGenerating;
-  const colors = STAGE_COLORS[stage];
+  // Type assertion since we know stage can only be 1, 2, 3
+  const colors = STAGE_COLORS[stage as 1 | 2 | 3];
 
   const handleCopy = async () => {
     await navigator.clipboard.writeText(content);

@@ -48,16 +48,14 @@ export const ModelDialog: React.FC<ModelDialogProps> = ({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="modelName">模型标识</Label>
+            <Label htmlFor="modelName">模型ID</Label>
             <Input
               id="modelName"
               placeholder="doubao-4k-character-level"
               value={currentModel.modelName || ""}
               onChange={(e) => updateField("modelName", e.target.value)}
             />
-            <p className="text-xs text-gray-500">
-              API 实际返回的 model 参数值
-            </p>
+            <p className="text-xs text-gray-500">API 实际调用使用的模型ID</p>
           </div>
 
           <div className="space-y-2">
@@ -86,16 +84,18 @@ export const ModelDialog: React.FC<ModelDialogProps> = ({
             </div>
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="apiKey">API Key</Label>
-            <Input
-              id="apiKey"
-              type="password"
-              placeholder="sk-xxxxxxxxxxxxxxxx"
-              value={currentModel.apiKey || ""}
-              onChange={(e) => updateField("apiKey", e.target.value)}
-            />
-          </div>
+          {currentModel.mode === "api" && (
+            <div className="space-y-2">
+              <Label htmlFor="apiKey">API Key</Label>
+              <Input
+                id="apiKey"
+                type="password"
+                placeholder="sk-xxxxxxxxxxxxxxxx"
+                value={currentModel.apiKey || ""}
+                onChange={(e) => updateField("apiKey", e.target.value)}
+              />
+            </div>
+          )}
 
           <div className="space-y-2">
             <Label htmlFor="baseUrl">API 地址</Label>
