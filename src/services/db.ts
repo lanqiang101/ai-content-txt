@@ -275,7 +275,7 @@ export async function deletePipelineConfig(id: string): Promise<{ success: boole
 
 // ========== 模型配置 API ==========
 export async function getModels(): Promise<any[]> {
-  const response = await fetch(`${API_BASE}/api/config/models/getList`);
+  const response = await fetch(`${API_BASE}/api/config/models`);
   if (!response.ok) {
     throw new Error(`获取模型列表失败: ${response.status}`);
   }

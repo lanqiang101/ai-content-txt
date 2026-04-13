@@ -12,7 +12,14 @@ interface OutputPanelProps {
   isLoading?: boolean;
 }
 
-const STAGE_COLORS = {
+const STAGE_COLORS: Record<
+  number,
+  {
+    gradient: string;
+    border: string;
+    bgLight: string;
+  }
+> = {
   1: {
     gradient: "from-blue-500 to-blue-600",
     border: "border-blue-200 dark:border-blue-700",

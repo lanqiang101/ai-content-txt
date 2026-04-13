@@ -37,24 +37,41 @@ export const ModelList: React.FC<ModelListProps> = ({
         <table className="w-full">
           <thead>
             <tr className="border-b border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-700/50">
-              <th className="text-left px-6 py-3 text-sm font-medium text-gray-600 dark:text-gray-300">名称</th>
-              <th className="text-left px-6 py-3 text-sm font-medium text-gray-600 dark:text-gray-300">模型标识</th>
-              <th className="text-left px-6 py-3 text-sm font-medium text-gray-600 dark:text-gray-300">温度</th>
-              <th className="text-left px-6 py-3 text-sm font-medium text-gray-600 dark:text-gray-300">最大Tokens</th>
-              <th className="text-left px-6 py-3 text-sm font-medium text-gray-600 dark:text-gray-300">模式</th>
-              <th className="text-left px-6 py-3 text-sm font-medium text-gray-600 dark:text-gray-300">状态</th>
-              <th className="text-right px-6 py-3 text-sm font-medium text-gray-600 dark:text-gray-300">操作</th>
+              <th className="text-left px-6 py-3 text-sm font-medium text-gray-600 dark:text-gray-300">
+                名称
+              </th>
+              <th className="text-left px-6 py-3 text-sm font-medium text-gray-600 dark:text-gray-300">
+                模型标识
+              </th>
+              <th className="text-left px-6 py-3 text-sm font-medium text-gray-600 dark:text-gray-300">
+                温度
+              </th>
+              <th className="text-left px-6 py-3 text-sm font-medium text-gray-600 dark:text-gray-300">
+                最大Tokens
+              </th>
+              <th className="text-left px-6 py-3 text-sm font-medium text-gray-600 dark:text-gray-300">
+                模式
+              </th>
+              <th className="text-left px-6 py-3 text-sm font-medium text-gray-600 dark:text-gray-300">
+                状态
+              </th>
+              <th className="text-right px-6 py-3 text-sm font-medium text-gray-600 dark:text-gray-300">
+                操作
+              </th>
             </tr>
           </thead>
           <tbody>
-            {models.length === 0 && (
+            {(!models || models.length === 0) && (
               <tr>
-                <td colSpan={7} className="text-center py-12 text-gray-500 dark:text-gray-400">
-                  还没有添加任何模型，点击右上角&quot;添加模型&quot;开始
+                <td
+                  colSpan={7}
+                  className="text-center py-12 text-gray-500 dark:text-gray-400"
+                >
+                  还没有添加任何模型，点击右上角"添加模型"开始
                 </td>
               </tr>
             )}
-            {models.map((model: ModelConfig) => (
+            {models?.map((model: ModelConfig) => (
               <tr
                 key={model.id}
                 className="border-b border-gray-200 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors"

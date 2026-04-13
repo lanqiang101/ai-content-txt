@@ -25,7 +25,7 @@ app.use(express.json());
 app.use((req, res, next) => {
   res.header('Access-Control-Allow-Origin', '*');
   res.header('Access-Control-Allow-Headers', 'Content-Type');
-  res.header('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
   if (req.method === 'OPTIONS') {
     return res.sendStatus(200);
   }
@@ -194,27 +194,13 @@ function initDatabase(db) {
     )
   `);
 
-  // 系统配置表 - 存储各阶段选中的模型配置
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS system_config (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      stage1_model_id INTEGER,
-      stage2_model_id INTEGER,
-      stage3_model_id INTEGER,
-      random_model_id INTEGER,
-      storyboard_model_id INTEGER,
-      created_at INTEGER,
-      updated_at INTEGER
-    )
-  `);
-
   console.log('✅ 所有数据表初始化完成');
 }
 
 // ========== 作品 API ==========
 
 // 获取所有作品（分页）
-app.get('/api/works/getList', (req, res) => {
+app.get('/api/works', (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
     const pageSize = parseInt(req.query.pageSize) || 20;
@@ -222,9 +208,9 @@ app.get('/api/works/getList', (req, res) => {
 
     const totalResult = db.prepare('SELECT COUNT(*) as count FROM works WHERE deleted_at IS NULL').get();
     const works = db.prepare(`
-      SELECT * FROM works
-      WHERE deleted_at IS NULL
-      ORDER BY updated_at DESC
+      SELECT * FROM works 
+      WHERE deleted_at IS NULL 
+      ORDER BY updated_at DESC 
       LIMIT ? OFFSET ?
     `).all(pageSize, offset);
 
@@ -240,15 +226,14 @@ app.get('/api/works/getList', (req, res) => {
       pageSize,
     });
   } catch (error) {
-    res.status(500).json({ error: (error).message });
+    res.status(500).json({ error: error.message });
   }
 });
 
 // 根据ID获取作品
-app.get('/api/works/getInfo', (req, res) => {
+app.get('/api/works/:id', (req, res) => {
   try {
-    const { id } = req.query;
-    const work = db.prepare('SELECT * FROM works WHERE id = ? AND deleted_at IS NULL').get(id);
+    const work = db.prepare('SELECT * FROM works WHERE id = ? AND deleted_at IS NULL').get(req.params.id);
     if (!work) {
       return res.json(null);
     }
@@ -259,19 +244,18 @@ app.get('/api/works/getInfo', (req, res) => {
       storyboardIds: work.storyboard_ids ? JSON.parse(work.storyboard_ids) : undefined,
     });
   } catch (error) {
-    res.status(500).json({ error: (error).message });
+    res.status(500).json({ error: error.message });
   }
 });
 
 // 获取完整作品（包含章节）
-app.get('/api/works/getFull', (req, res) => {
+app.get('/api/works/:id/full', (req, res) => {
   try {
-    const { id } = req.query;
-    const work = db.prepare('SELECT * FROM works WHERE id = ? AND deleted_at IS NULL').get(id);
+    const work = db.prepare('SELECT * FROM works WHERE id = ? AND deleted_at IS NULL').get(req.params.id);
     if (!work) {
       return res.json(null);
     }
-    const chapters = db.prepare('SELECT * FROM chapters WHERE work_id = ? AND deleted_at IS NULL ORDER BY chapter_number ASC').all(id);
+    const chapters = db.prepare('SELECT * FROM chapters WHERE work_id = ? AND deleted_at IS NULL ORDER BY chapter_number ASC').all(req.params.id);
     res.json({
       ...work,
       expectedWordCount: Number(work.expected_word_count),
@@ -287,12 +271,12 @@ app.get('/api/works/getFull', (req, res) => {
       })),
     });
   } catch (error) {
-    res.status(500).json({ error: (error).message });
+    res.status(500).json({ error: error.message });
   }
 });
 
 // 创建作品
-app.post('/api/works/add', (req, res) => {
+app.post('/api/works', (req, res) => {
   try {
     const work = req.body;
     const now = Date.now();
@@ -320,14 +304,15 @@ app.post('/api/works/add', (req, res) => {
     );
     res.json(work);
   } catch (error) {
-    res.status(500).json({ error: (error).message });
+    res.status(500).json({ error: error.message });
   }
 });
 
 // 更新作品
-app.post('/api/works/update', (req, res) => {
+app.put('/api/works/:id', (req, res) => {
   try {
-    const { id, ...updates } = req.body;
+    const id = req.params.id;
+    const updates = req.body;
     const existing = db.prepare('SELECT * FROM works WHERE id = ? AND deleted_at IS NULL').get(id);
     if (!existing) {
       return res.json(null);
@@ -374,25 +359,24 @@ app.post('/api/works/update', (req, res) => {
       storyboardIds: result.storyboard_ids ? JSON.parse(result.storyboard_ids) : undefined,
     });
   } catch (error) {
-    res.status(500).json({ error: (error).message });
+    res.status(500).json({ error: error.message });
   }
 });
 
 // 删除作品
-app.post('/api/works/delete', (req, res) => {
+app.delete('/api/works/:id', (req, res) => {
   try {
-    const { id } = req.body;
-    const result = db.prepare('UPDATE works SET deleted_at = ? WHERE id = ?').run(Date.now(), id);
+    const result = db.prepare('UPDATE works SET deleted_at = ? WHERE id = ?').run(Date.now(), req.params.id);
     res.json({ success: result.changes > 0 });
   } catch (error) {
-    res.status(500).json({ error: (error).message });
+    res.status(500).json({ error: error.message });
   }
 });
 
 // 根据状态筛选作品
-app.get('/api/works/getByStatus', (req, res) => {
+app.get('/api/works/status/:status', (req, res) => {
   try {
-    const { status } = req.query;
+    const status = req.params.status;
     const page = parseInt(req.query.page) || 1;
     const pageSize = parseInt(req.query.pageSize) || 20;
     const offset = (page - 1) * pageSize;
@@ -415,18 +399,17 @@ app.get('/api/works/getByStatus', (req, res) => {
       pageSize,
     });
   } catch (error) {
-    res.status(500).json({ error: (error).message });
+    res.status(500).json({ error: error.message });
   }
 });
 
 // 获取作品的章节列表
-app.get('/api/works/getChapters', (req, res) => {
+app.get('/api/works/:id/chapters', (req, res) => {
   try {
-    const { id } = req.query;
     const chapters = db.prepare(`
       SELECT * FROM chapters WHERE work_id = ? AND deleted_at IS NULL
       ORDER BY chapter_number ASC
-    `).all(id);
+    `).all(req.params.id);
     res.json(chapters.map(row => ({
       ...row,
       workId: row.work_id,
@@ -436,19 +419,18 @@ app.get('/api/works/getChapters', (req, res) => {
       updatedAt: row.updated_at,
     })));
   } catch (error) {
-    res.status(500).json({ error: (error).message });
+    res.status(500).json({ error: error.message });
   }
 });
 
 // ========== 角色 API ==========
 
-app.get('/api/characters/getListByWork', (req, res) => {
+app.get('/api/characters/work/:workId', (req, res) => {
   try {
-    const { workId } = req.query;
     const characters = db.prepare(`
       SELECT * FROM characters WHERE work_id = ? AND deleted_at IS NULL
       ORDER BY created_at ASC
-    `).all(workId);
+    `).all(req.params.workId);
     res.json(characters.map(row => ({
       ...row,
       workId: row.work_id,
@@ -456,14 +438,13 @@ app.get('/api/characters/getListByWork', (req, res) => {
       updatedAt: Number(row.updated_at),
     })));
   } catch (error) {
-    res.status(500).json({ error: (error).message });
+    res.status(500).json({ error: error.message });
   }
 });
 
-app.get('/api/characters/getInfo', (req, res) => {
+app.get('/api/characters/:id', (req, res) => {
   try {
-    const { id } = req.query;
-    const character = db.prepare('SELECT * FROM characters WHERE id = ? AND deleted_at IS NULL').get(id);
+    const character = db.prepare('SELECT * FROM characters WHERE id = ? AND deleted_at IS NULL').get(req.params.id);
     if (!character) {
       return res.json(null);
     }
@@ -474,11 +455,11 @@ app.get('/api/characters/getInfo', (req, res) => {
       updatedAt: Number(character.updated_at),
     });
   } catch (error) {
-    res.status(500).json({ error: (error).message });
+    res.status(500).json({ error: error.message });
   }
 });
 
-app.post('/api/characters/add', (req, res) => {
+app.post('/api/characters', (req, res) => {
   try {
     const character = req.body;
     const now = Date.now();
@@ -502,13 +483,14 @@ app.post('/api/characters/add', (req, res) => {
     );
     res.json(character);
   } catch (error) {
-    res.status(500).json({ error: (error).message });
+    res.status(500).json({ error: error.message });
   }
 });
 
-app.post('/api/characters/update', (req, res) => {
+app.put('/api/characters/:id', (req, res) => {
   try {
-    const { id, ...updates } = req.body;
+    const id = req.params.id;
+    const updates = req.body;
     const existing = db.prepare('SELECT * FROM characters WHERE id = ? AND deleted_at IS NULL').get(id);
     if (!existing) {
       return res.json(null);
@@ -547,102 +529,86 @@ app.post('/api/characters/update', (req, res) => {
       updatedAt: Number(result.updated_at),
     });
   } catch (error) {
-    res.status(500).json({ error: (error).message });
-  }
+    res.status(500).json({ error: error.message });  
+}
 });
 
-app.post('/api/characters/delete', (req, res) => {
+// ========== 分镜 API ==========
+app.get('/api/storyboards/work/:workId', (req, res) => {
   try {
-    const { id } = req.body;
-    const result = db.prepare('UPDATE characters SET deleted_at = ? WHERE id = ?').run(Date.now(), id);
-    res.json({success: result.changes > 0});
-  } catch (error) {
-    res.status(500).json({error: (error).message});
-  }
-});
-
-// ========== 分镜 API - 操作分离 ==========
-app.get('/api/storyboards/getListByWork', (req, res) => {
-  try {
-    const { workId } = req.query;
-    const storyboards = db.prepare(`SELECT * FROM storyboards WHERE work_id = ? AND deleted_at IS NULL ORDER BY created_at DESC`).all(workId);
+    const storyboards = db.prepare(`SELECT * FROM storyboards WHERE work_id = ? AND deleted_at IS NULL ORDER BY created_at DESC`).all(req.params.workId);
     res.json(storyboards.map(row => ({...row, workId: row.work_id, config: JSON.parse(row.config), prompts: JSON.parse(row.prompts), totalDuration: Number(row.total_duration), createdAt: Number(row.created_at)})));
-  } catch (error) {res.status(500).json({error: (error).message});}
+  } catch (error) {res.status(500).json({error: error.message});}
 });
 
-app.get('/api/storyboards/getInfo', (req, res) => {
+app.get('/api/storyboards/:id', (req, res) => {
   try {
-    const { id } = req.query;
-    const storyboard = db.prepare('SELECT * FROM storyboards WHERE id = ? AND deleted_at IS NULL').get(id);
+    const storyboard = db.prepare('SELECT * FROM storyboards WHERE id = ? AND deleted_at IS NULL').get(req.params.id);
     if (!storyboard) return res.json(null);
     res.json({...storyboard, workId: storyboard.work_id, config: JSON.parse(storyboard.config), prompts: JSON.parse(storyboard.prompts), totalDuration: Number(storyboard.total_duration), createdAt: Number(storyboard.created_at)});
-  } catch (error) {res.status(500).json({error: (error).message});}
+  } catch (error) {res.status(500).json({error: error.message});}
 });
 
-app.post('/api/storyboards/add', (req, res) => {
+app.post('/api/storyboards', (req, res) => {
   try {
     const storyboard = req.body;
     const now = Date.now();
     const stmt = db.prepare(`INSERT INTO storyboards (id, work_id, config, prompts, total_duration, created_at) VALUES (?, ?, ?, ?, ?, ?)`);
     stmt.run(storyboard.id, storyboard.workId, JSON.stringify(storyboard.config), JSON.stringify(storyboard.prompts), storyboard.totalDuration, storyboard.createdAt || now);
     res.json(storyboard);
-  } catch (error) {res.status(500).json({error: (error).message});}
+  } catch (error) {res.status(500).json({error: error.message});}
 });
 
-app.post('/api/storyboards/delete', (req, res) => {
+app.delete('/api/storyboards/:id', (req, res) => {
   try {
-    const { id } = req.body;
-    const result = db.prepare('UPDATE storyboards SET deleted_at = ? WHERE id = ?').run(Date.now(), id);
+    const result = db.prepare('UPDATE storyboards SET deleted_at = ? WHERE id = ?').run(Date.now(), req.params.id);
     res.json({success: result.changes > 0});
-  } catch (error) {res.status(500).json({error: (error).message});}
+  } catch (error) {res.status(500).json({error: error.message});}
 });
 
-// ========== 小说大纲 API - 操作分离 ==========
-app.get('/api/outlines/getListByWork', (req, res) => {
+// ========== 小说大纲 API ==========
+app.get('/api/outlines/work/:workId', (req, res) => {
   try {
-    const { workId } = req.query;
-    const outlines = db.prepare(`SELECT * FROM book_outlines WHERE work_id = ? AND deleted_at IS NULL ORDER BY created_at DESC`).all(workId);
+    const outlines = db.prepare(`SELECT * FROM book_outlines WHERE work_id = ? AND deleted_at IS NULL ORDER BY created_at DESC`).all(req.params.workId);
     res.json(outlines.map(row => ({id: row.id, workId: row.work_id, chapters: JSON.parse(row.chapters), createdAt: Number(row.created_at)})));
-  } catch (error) {res.status(500).json({error: (error).message});}
+  } catch (error) {res.status(500).json({error: error.message});}
 });
 
-app.get('/api/outlines/getInfo', (req, res) => {
+app.get('/api/outlines/:id', (req, res) => {
   try {
-    const { id } = req.query;
-    const outline = db.prepare('SELECT * FROM book_outlines WHERE id = ? AND deleted_at IS NULL').get(id);
+    const outline = db.prepare('SELECT * FROM book_outlines WHERE id = ? AND deleted_at IS NULL').get(req.params.id);
     if (!outline) return res.json(null);
     res.json({id: outline.id, workId: outline.work_id, chapters: JSON.parse(outline.chapters), createdAt: Number(outline.created_at)});
-  } catch (error) {res.status(500).json({error: (error).message});}
+  } catch (error) {res.status(500).json({error: error.message});}
 });
 
-app.post('/api/outlines/add', (req, res) => {
+app.post('/api/outlines', (req, res) => {
   try {
     const outline = req.body;
     const stmt = db.prepare(`INSERT INTO book_outlines (id, work_id, chapters, created_at) VALUES (?, ?, ?, ?)`);
     stmt.run(outline.id, outline.workId, JSON.stringify(outline.chapters), outline.createdAt);
     res.json(outline);
-  } catch (error) {res.status(500).json({error: (error).message});}
+  } catch (error) {res.status(500).json({error: error.message});}
 });
 
-app.post('/api/outlines/update', (req, res) => {
+app.put('/api/outlines/:id', (req, res) => {
   try {
-    const { id, ...outline } = req.body;
+    const outline = req.body;
     const stmt = db.prepare(`UPDATE book_outlines SET chapters = ? WHERE id = ?`);
-    stmt.run(JSON.stringify(outline.chapters), id);
+    stmt.run(JSON.stringify(outline.chapters), outline.id);
     res.json(outline);
-  } catch (error) {res.status(500).json({error: (error).message});}
+  } catch (error) {res.status(500).json({error: error.message});}
 });
 
-app.post('/api/outlines/delete', (req, res) => {
+app.delete('/api/outlines/:id', (req, res) => {
   try {
-    const { id } = req.body;
-    const result = db.prepare('UPDATE book_outlines SET deleted_at = ? WHERE id = ?').run(Date.now(), id);
+    const result = db.prepare('UPDATE book_outlines SET deleted_at = ? WHERE id = ?').run(Date.now(), req.params.id);
     res.json({success: result.changes > 0});
-  } catch (error) {res.status(500).json({error: (error).message});}
+  } catch (error) {res.status(500).json({error: error.message});}
 });
 
-// ========== 生成历史 API - 操作分离 ==========
-app.get('/api/history/getList', (req, res) => {
+// ========== 生成历史 API ==========
+app.get('/api/history', (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
     const pageSize = parseInt(req.query.pageSize) || 20;
@@ -650,188 +616,214 @@ app.get('/api/history/getList', (req, res) => {
     const countResult = db.prepare('SELECT COUNT(*) as count FROM content_history WHERE deleted_at IS NULL').get();
     const history = db.prepare(`SELECT * FROM content_history WHERE deleted_at IS NULL ORDER BY created_at DESC LIMIT ${pageSize} OFFSET ${offset}`).all();
     res.json({history, total: Number(countResult.count), page, pageSize});
-  } catch (error) {res.status(500).json({error: (error).message});}
+  } catch (error) {res.status(500).json({error: error.message});}
 });
 
-app.post('/api/history/add', (req, res) => {
+app.post('/api/history', (req, res) => {
   try {
     const item = req.body;
     const now = Date.now();
     const stmt = db.prepare(`INSERT INTO content_history (id, type, topic, result, created_at) VALUES (?, ?, ?, ?, ?)`);
     stmt.run(item.id, item.type, item.topic, item.result, item.createdAt || now);
     res.json(item);
-  } catch (error) {res.status(500).json({error: (error).message});}
+  } catch (error) {res.status(500).json({error: error.message});}
 });
 
-app.post('/api/history/delete', (req, res) => {
+app.delete('/api/history/:id', (req, res) => {
   try {
-    const { id } = req.body;
-    const result = db.prepare('UPDATE content_history SET deleted_at = ? WHERE id = ?').run(Date.now(), id);
+    const result = db.prepare('UPDATE content_history SET deleted_at = ? WHERE id = ?').run(Date.now(), req.params.id);
     res.json({success: result.changes > 0});
-  } catch (error) {res.status(500).json({error: (error).message});}
+  } catch (error) {res.status(500).json({error: error.message});}
 });
 
-// ========== 流水线配置 API - 操作分离 ==========
-app.get('/api/config/pipeline/getList', (req, res) => {
+// ========== 配置 API ==========
+app.get('/api/config/pipeline', (req, res) => {
   try {
     const configs = db.prepare('SELECT * FROM pipeline_config ORDER BY created_at DESC').all();
     res.json(configs.map(row => ({...row, config: JSON.parse(row.config)})));
-  } catch (error) {res.status(500).json({error: (error).message});}
+  } catch (error) {res.status(500).json({error: error.message});}
 });
-
-app.post('/api/config/pipeline/add', (req, res) => {
+app.delete('/api/config/pipeline/:id', (req, res) => {
   try {
-    const config = req.body;
-    const now = Date.now();
-    const stmt = db.prepare(`INSERT INTO pipeline_config (id, name, config, created_at, updated_at) VALUES (?, ?, ?, ?, ?)`);
-    stmt.run(config.id, config.name, JSON.stringify(config.config), now, now);
-    res.json(config);
-  } catch (error) {res.status(500).json({error: (error).message});}
+    const result = db.prepare('DELETE FROM pipeline_config WHERE id = ?').run(req.params.id);
 });
-
-app.post('/api/config/pipeline/update', (req, res) => {
+app.delete('/api/config/pipeline/:id', (req, res) => {
   try {
-    const { id, ...config } = req.body;
-    const now = Date.now();
-    const stmt = db.prepare(`UPDATE pipeline_config SET name = ?, config = ?, updated_at = ? WHERE id = ?`);
-    stmt.run(config.name, JSON.stringify(config.config), now, id);
-    res.json(config);
-  } catch (error) {res.status(500).json({error: (error).message});}
-});
-
-app.post('/api/config/pipeline/delete', (req, res) => {
-  try {
-    const { id } = req.body;
-    const result = db.prepare('DELETE FROM pipeline_config WHERE id = ?').run(id);
+    const result = db.prepare('DELETE FROM pipeline_config WHERE id = ?').run(req.params.id);
     res.json({success: result.changes > 0});
-  } catch (error) {res.status(500).json({error: (error).message});}
+  } catch (error) {res.status(500).json({error: error.message});}
 });
 
-// ========== 模型配置 API - 操作分离 ==========
-app.get('/api/config/models/getList', (req, res) => {
+// ========== 模型配置 API - 支持本地/API两种模式 ==========
+app.get('/api/config/models', (req, res) => {
   try {
-    const models = db.prepare('SELECT * FROM model_config WHERE enabled = 1 ORDER BY id ASC').all();
-    res.json(models);
-  } catch (error) {res.status(500).json({error: (error).message});}
+    const models = db.prepare('SELECT * FROM model_config ORDER BY id ASC').all();
+    // 转换数据库下划线命名字段到前端驼峰命名
+    const convertedModels = models.map(m => ({
+      id: m.id,
+      name: m.name,
+      modelName: m.model_name,
+      apiKey: m.api_key,
+      baseUrl: m.base_url,
+      maxTokens: m.max_tokens,
+      temperature: m.temperature,
+      mode: m.mode,
+      enabled: Boolean(m.enabled),
+      createdAt: Number(m.created_at),
+      updatedAt: Number(m.updated_at),
+    }));
+    res.json(convertedModels.filter(m => m.enabled));
+  } catch (error) {res.status(500).json({error: error.message});}
 });
 
-app.get('/api/config/models/getInfo', (req, res) => {
+app.get('/api/config/models', (req, res) => {
   try {
-    const { id } = req.query;
-    const model = db.prepare('SELECT * FROM model_config WHERE id = ? AND enabled = 1').get(Number(id));
-    res.json(model || null);
-  } catch (error) {res.status(500).json({error: (error).message});}
+    const models = db.prepare('SELECT * FROM model_config ORDER BY id ASC').all();
+    // 转换数据库下划线命名字段到前端驼峰命名
+    const convertedModels = models.map(m => ({
+      id: m.id,
+      name: m.name,
+      modelName: m.model_name,
+      apiKey: m.api_key,
+      baseUrl: m.base_url,
+      maxTokens: m.max_tokens,
+      temperature: m.temperature,
+      mode: m.mode,
+      enabled: Boolean(m.enabled),
+      createdAt: Number(m.created_at),
+      updatedAt: Number(m.updated_at),
+    }));
+    res.json(convertedModels.filter(m => m.enabled));
+  } catch (error) {res.status(500).json({error: error.message});}
+});
+    res.json({
+      id: model.id,
+      name: model.name,
+      modelName: model.model_name,
+      apiKey: model.api_key,
+      baseUrl: model.base_url,
+      maxTokens: model.max_tokens,
+      temperature: model.temperature,
+      mode: model.mode,
+      enabled: Boolean(model.enabled),
+      createdAt: Number(model.created_at),
+      updatedAt: Number(model.updated_at),
+    });
+  } catch (error) {res.status(500).json({error: error.message});}
 });
 
-app.post('/api/config/models/add', (req, res) => {
+app.post('/api/config/models', (req, res) => {
   try {
-    const { name, api_key, base_url, model_name, max_tokens, temperature } = req.body;
+    // 兼容前端驼峰命名和后端下划线命名
+    const { 
+      name, 
+      modelName, model_name,
+      apiKey, api_key,
+      baseUrl, base_url,
+      maxTokens, max_tokens,
+      temperature,
+      mode
+    } = req.body;
     const now = Date.now();
     const stmt = db.prepare(`
-      INSERT INTO model_config (name, api_key, base_url, model_name, max_tokens, temperature, enabled, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)
+      INSERT INTO model_config (name, model_name, api_key, base_url, max_tokens, temperature, mode, enabled, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
-    const result = stmt.run(name, api_key, base_url, model_name, max_tokens, temperature, now, now);
+    const result = stmt.run(
+      name,
+      modelName ?? model_name,
+      apiKey ?? api_key,
+      baseUrl ?? base_url,
+      maxTokens ?? max_tokens,
+      temperature,
+      mode,
+      1,
+      now,
+      now
+    );
     res.json({ id: result.lastInsertRowid, ...req.body, enabled: 1 });
-  } catch (error) {res.status(500).json({error: (error).message});}
+  } catch (error) {res.status(500).json({error: error.message});}
 });
 
-app.post('/api/config/models/update', (req, res) => {
+app.put('/api/config/models/:id', (req, res) => {
   try {
-    const { id, name, api_key, base_url, model_name, max_tokens, temperature, enabled } = req.body;
+    const { 
+      id,
+      name, 
+      modelName, model_name,
+      apiKey, api_key,
+      baseUrl, base_url,
+      maxTokens, max_tokens,
+      temperature,
+      enabled,
+      mode
+    } = req.body;
     const now = Date.now();
     const stmt = db.prepare(`
       UPDATE model_config SET name = COALESCE(?, name),
+        model_name = COALESCE(?, model_name),
         api_key = COALESCE(?, api_key),
         base_url = COALESCE(?, base_url),
-        model_name = COALESCE(?, model_name),
         max_tokens = COALESCE(?, max_tokens),
         temperature = COALESCE(?, temperature),
+        mode = COALESCE(?, mode),
         enabled = COALESCE(?, enabled),
         updated_at = ?
       WHERE id = ?
     `);
-    stmt.run(name, api_key, base_url, model_name, max_tokens, temperature, enabled, now, id);
-    const model = db.prepare('SELECT * FROM model_config WHERE id = ?').get(id);
-    res.json(model);
-  } catch (error) {res.status(500).json({error: (error).message});}
+    stmt.run(
+      name,
+      modelName ?? model_name,
+      apiKey ?? api_key,
+      baseUrl ?? base_url,
+      maxTokens ?? max_tokens,
+      temperature,
+      mode,
+      enabled,
+      now,
+      id
+    );
+    const model = db.prepare('SELECT * FROM model_config WHERE id = ?').get(req.params.id);
+    // 转换返回给前端
+    res.json({
+      id: model.id,
+      name: model.name,
+      modelName: model.model_name,
+      apiKey: model.api_key,
+      baseUrl: model.base_url,
+      maxTokens: model.max_tokens,
+      temperature: model.temperature,
+      mode: model.mode,
+      enabled: Boolean(model.enabled),
+      createdAt: Number(model.created_at),
+      updatedAt: Number(model.updated_at),
+    });
+  } catch (error) {res.status(500).json({error: error.message});}
 });
 
-app.post('/api/config/models/delete', (req, res) => {
+app.delete('/api/config/models/:id', (req, res) => {
   try {
-    const { id } = req.body;
     // 软删除：标记为禁用
-    const result = db.prepare('UPDATE model_config SET enabled = 0, updated_at = ? WHERE id = ?').run(Date.now(), id);
+    const result = db.prepare('UPDATE model_config SET enabled = 0, updated_at = ? WHERE id = ?').run(Date.now(), req.params.id);
     res.json({success: result.changes > 0});
-  } catch (error) {res.status(500).json({error: (error).message});}
+  } catch (error) {res.status(500).json({error: error.message});}
 });
 
-// ========== 系统配置 API ==========
-app.get('/api/config/system/getConfig', (req, res) => {
+app.get('/api/config/app/:key', (req, res) => {
   try {
-    // 总是获取第一条记录（只有一条全局配置）
-    const config = db.prepare('SELECT * FROM system_config ORDER BY id ASC LIMIT 1').get();
-    res.json(config || null);
-  } catch (error) {res.status(500).json({error: (error).message});}
-});
-
-app.post('/api/config/system/save', (req, res) => {
-  try {
-    const { stage1_model_id, stage2_model_id, stage3_model_id, random_model_id, storyboard_model_id } = req.body;
-    const now = Date.now();
-
-    // 检查是否已有配置
-    const existing = db.prepare('SELECT id FROM system_config ORDER BY id ASC LIMIT 1').get();
-
-    if (existing) {
-      // 更新
-      const stmt = db.prepare(`
-        UPDATE system_config SET
-          stage1_model_id = COALESCE(?, stage1_model_id),
-          stage2_model_id = COALESCE(?, stage2_model_id),
-          stage3_model_id = COALESCE(?, stage3_model_id),
-          random_model_id = COALESCE(?, random_model_id),
-          storyboard_model_id = COALESCE(?, storyboard_model_id),
-          updated_at = ?
-        WHERE id = ?
-      `);
-      stmt.run(stage1_model_id, stage2_model_id, stage3_model_id, random_model_id, storyboard_model_id, now, existing.id);
-      const updated = db.prepare('SELECT * FROM system_config WHERE id = ?').get(existing.id);
-      res.json(updated);
-    } else {
-      // 插入新配置
-      const stmt = db.prepare(`
-        INSERT INTO system_config (stage1_model_id, stage2_model_id, stage3_model_id, random_model_id, storyboard_model_id, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-      `);
-      const result = stmt.run(stage1_model_id, stage2_model_id, stage3_model_id, random_model_id, storyboard_model_id, now, now);
-      res.json({
-        id: result.lastInsertRowid,
-        stage1_model_id, stage2_model_id, stage3_model_id, random_model_id, storyboard_model_id,
-        created_at: now, updated_at: now
-      });
-    }
-  } catch (error) {res.status(500).json({error: (error).message});}
-});
-
-// ========== 应用配置 API ==========
-app.get('/api/config/app/getInfo', (req, res) => {
-  try {
-    const { key } = req.query;
-    const config = db.prepare('SELECT * FROM app_config WHERE key = ?').get(key);
+    const config = db.prepare('SELECT * FROM app_config WHERE key = ?').get(req.params.key);
     res.json(config ? JSON.parse(config.value) : null);
-  } catch (error) {res.status(500).json({error: (error).message});}
+  } catch (error) {res.status(500).json({error: error.message});}
 });
 
-app.post('/api/config/app/save', (req, res) => {
+app.post('/api/config/app/:key', (req, res) => {
   try {
-    const { key } = req.query;
     const value = req.body;
     const now = Date.now();
     const stmt = db.prepare(`INSERT OR REPLACE INTO app_config (key, value, updated_at) VALUES (?, ?, ?)`);
-    stmt.run(key, JSON.stringify(value), now);
+    stmt.run(req.params.key, JSON.stringify(value), now);
     res.json(value);
-  } catch (error) {res.status(500).json({error: (error).message});}
+  } catch (error) {res.status(500).json({error: error.message});}
 });
 
 // ========== 启动服务器 ==========
