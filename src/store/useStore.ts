@@ -304,7 +304,7 @@ interface AppState {
   setWorks: (works: Work[]) => void;
   addWork: (work: Work) => void;
   updateWork: (id: string, updates: Partial<Work>) => void;
-  deleteWork: (id: string) => void;
+  deleteWork: (id: string) => Promise<void>;
   addCharacter: (character: Character) => void;
   updateCharacter: (id: string, updates: Partial<Character>) => void;
   deleteCharacter: (id: string) => void;
@@ -371,7 +371,7 @@ export const useStore = create<AppState>()(
           configOpen: !state.configOpen,
         })),
         toggleHistory: () => set((state) => ({
-          historyOpen: !state.historyOpen,
+          historyOpen: !historyOpen,
         })),
         toggleWorks: () => set((state) => ({
           worksOpen: !state.worksOpen,
@@ -409,9 +409,18 @@ export const useStore = create<AppState>()(
             console.error('❌ 更新作品到数据库失败:', error);
           }
         },
-        deleteWork: (id: string) => set((state) => ({
-          works: state.works.filter(w => w.id !== id),
-        })),
+        deleteWork: async (id: string) => {
+          set((state) => ({
+            works: state.works.filter(w => w.id !== id),
+          }));
+          // 从数据库删除
+          try {
+            await dbService.deleteWork(id);
+            console.log('✅ 作品已从数据库删除:', id);
+          } catch (error) {
+            console.error('❌ 从数据库删除作品失败:', error);
+          }
+        },
         addCharacter: (character: Character) => set((state) => ({
           characters: [...state.characters, character],
         })),

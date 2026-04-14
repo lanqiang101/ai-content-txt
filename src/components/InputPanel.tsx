@@ -1,15 +1,10 @@
 import React from "react";
 import { useStore } from "../store/useStore";
-import { RefreshCw } from "lucide-react";
 import { RandomButton } from "./RandomButton";
 import { KeywordGeneratorButton } from "./KeywordGeneratorButton";
 
 export const InputPanel: React.FC = () => {
-  const { params, setParams, resetGeneration } = useStore();
-
-  const handleReset = () => {
-    resetGeneration();
-  };
+  const { params, setParams } = useStore();
 
   return (
     <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg card-gradient p-4 sm:p-5 transition-all hover:shadow-xl border border-gray-200/50 dark:border-slate-700/50">
@@ -17,13 +12,6 @@ export const InputPanel: React.FC = () => {
         <h2 className="text-lg font-bold text-gray-800 dark:text-gray-100">
           单篇创作参数
         </h2>
-        <button
-          onClick={handleReset}
-          className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-all"
-        >
-          <RefreshCw size={14} />
-          重置
-        </button>
       </div>
 
       <div className="space-y-5">

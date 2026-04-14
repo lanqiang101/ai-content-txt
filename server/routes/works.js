@@ -4,7 +4,7 @@ const router = express.Router();
 
 export default function (db) {
   // 获取所有作品（分页）
-  router.get('/works', (req, res) => {
+  router.get('/works/list', (req, res) => {
     try {
       const page = parseInt(req.query.page) || 1;
       const pageSize = parseInt(req.query.pageSize) || 20;
@@ -80,7 +80,7 @@ export default function (db) {
   });
 
   // 创建作品
-  router.post('/works', (req, res) => {
+  router.post('/works/add', (req, res) => {
     try {
       const work = req.body;
       const now = Date.now();
@@ -104,7 +104,7 @@ export default function (db) {
         work.updatedAt || now,
         work.storyboardIds ? JSON.stringify(work.storyboardIds) : null,
         work.content,
-        work.generationParams
+        work.generationParams ? JSON.stringify(work.generationParams) : null
       );
       res.json(work);
     } catch (error) {
@@ -151,7 +151,7 @@ export default function (db) {
         updatedAt,
         updates.storyboardIds ? JSON.stringify(updates.storyboardIds) : null,
         updates.content,
-        updates.generationParams,
+        updates.generationParams ? JSON.stringify(updates.generationParams) : null,
         id
       );
 

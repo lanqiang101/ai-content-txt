@@ -1,19 +1,49 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { FolderOpen, Search, ChevronLeft, ChevronRight } from "lucide-react";
 import { useStore } from "../store/useStore";
+import { dbService } from "../services/db";
 import { Work, WorkStatus } from "../types";
 import { WorkCard } from "../components/WorksPanel/WorkCard";
 import { Button } from "../components/ui/Button";
 
-const PAGE_SIZE = 10;
+const PAGE_SIZE = 20;
 
 export const WorksListPage: React.FC = () => {
   const navigate = useNavigate();
-  const { works, setCurrentWork, setParams, deleteWork } = useStore();
+  const { setCurrentWork, setParams, deleteWork } = useStore();
+  const [works, setWorks] = useState<Work[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [filterStatus, setFilterStatus] = useState<WorkStatus | "all">("all");
   const [currentPage, setCurrentPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(false);
+
+  // 从后端数据库加载作品列表（分页）
+  const loadWorks = async (page: number) => {
+    setLoading(true);
+    try {
+      const result = await dbService.getWorks(page, PAGE_SIZE);
+      setWorks(result.works);
+      setTotal(result.total);
+      setCurrentPage(page);
+      console.log("✅ 从数据库加载了第", page, "页，共", result.works.length, "个作品");
+    } catch (error) {
+      console.error("❌ 加载作品列表失败:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 初次加载
+  useEffect(() => {
+    loadWorks(1);
+  }, []);
+
+  // 处理页码变化
+  const handlePageChange = (page: number) => {
+    loadWorks(page);
+  };
 
   const filteredWorks = works.filter((work) => {
     const matchSearch =
@@ -24,10 +54,7 @@ export const WorksListPage: React.FC = () => {
     return matchSearch && matchStatus;
   });
 
-  // 分页计算
-  const totalPages = Math.ceil(filteredWorks.length / PAGE_SIZE);
-  const startIndex = (currentPage - 1) * PAGE_SIZE;
-  const paginatedWorks = filteredWorks.slice(startIndex, startIndex + PAGE_SIZE);
+  const totalPages = Math.ceil(total / PAGE_SIZE);
 
   const handleSelectWork = (work: Work) => {
     setCurrentWork(work.id);
@@ -41,8 +68,20 @@ export const WorksListPage: React.FC = () => {
     navigate(`/works/${work.id}`);
   };
 
-  const handleDeleteWork = (id: string) => {
-    deleteWork(id);
+  const handleDeleteWork = async (id: string) => {
+    try {
+      await dbService.deleteWork(id);
+      // 删除后重新加载第一页
+      setWorks(works.filter(w => w.id !== id));
+      setTotal(total - 1);
+      console.log("✅ 作品已从数据库删除:", id);
+      // 如果当前页为空且不是第一页，回到前一页
+      if (works.length === 1 && currentPage > 1) {
+        loadWorks(currentPage - 1);
+      }
+    } catch (error) {
+      console.error("❌ 删除作品失败:", error);
+    }
   };
 
   return (
@@ -57,8 +96,9 @@ export const WorksListPage: React.FC = () => {
               作品管理
             </h1>
             <p className="text-sm text-gray-500">
-              {filteredWorks.length} 个作品
+              共 {total} 个作品
             </p>
+            {loading && <p className="text-sm text-gray-400">加载中...</p>}
           </div>
         </div>
         <Button variant="secondary" onClick={() => navigate("/")}>
@@ -117,13 +157,13 @@ export const WorksListPage: React.FC = () => {
               className="mx-auto mb-4 text-gray-300 dark:text-gray-600"
             />
             <p className="text-gray-500 dark:text-gray-400 mb-2">
-              {works.length === 0 ? "暂无作品" : "没有找到匹配的作品"}
+              {total === 0 ? "暂无作品" : "没有找到匹配的作品"}
             </p>
             <p className="text-sm text-gray-400">生成内容后将自动保存为作品</p>
           </div>
         ) : (
           <div className="divide-y divide-gray-200 dark:divide-slate-700">
-            {paginatedWorks.map((work) => (
+            {filteredWorks.map((work) => (
               <WorkCard
                 key={work.id}
                 work={work}
@@ -138,13 +178,13 @@ export const WorksListPage: React.FC = () => {
         {totalPages > 1 && (
           <div className="flex items-center justify-between px-6 py-4 border-t border-gray-200 dark:border-slate-700">
             <div className="text-sm text-gray-500">
-              显示 {startIndex + 1}-{Math.min(startIndex + PAGE_SIZE, filteredWorks.length)} / 共 {filteredWorks.length} 条
+              显示 {(currentPage - 1) * PAGE_SIZE + 1}-{Math.min(currentPage * PAGE_SIZE, total)} / 共 {total} 条
             </div>
             <div className="flex items-center gap-2">
               <Button
                 variant="secondary"
-                disabled={currentPage <= 1}
-                onClick={() => setCurrentPage((prev) => prev - 1)}
+                disabled={currentPage <= 1 || loading}
+                onClick={() => handlePageChange(currentPage - 1)}
               >
                 <ChevronLeft size={16} />
                 上一页
@@ -153,12 +193,13 @@ export const WorksListPage: React.FC = () => {
                 {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
                   <button
                     key={page}
-                    onClick={() => setCurrentPage(page)}
+                    onClick={() => handlePageChange(page)}
+                    disabled={loading}
                     className={`w-8 h-8 rounded-lg text-sm font-medium transition-colors ${
                       currentPage === page
                         ? "bg-primary text-white"
                         : "hover:bg-gray-100 dark:hover:bg-slate-700 text-gray-600 dark:text-gray-400"
-                    }`}
+                    } ${loading ? "opacity-50 cursor-not-allowed" : ""}`}
                   >
                     {page}
                   </button>
@@ -166,8 +207,8 @@ export const WorksListPage: React.FC = () => {
               </div>
               <Button
                 variant="secondary"
-                disabled={currentPage >= totalPages}
-                onClick={() => setCurrentPage((prev) => prev + 1)}
+                disabled={currentPage >= totalPages || loading}
+                onClick={() => handlePageChange(currentPage + 1)}
               >
                 下一页
                 <ChevronRight size={16} />
@@ -183,8 +224,9 @@ export const WorksListPage: React.FC = () => {
           💡 使用提示
         </h4>
         <ul className="text-sm text-purple-700 dark:text-purple-300 space-y-1">
-          <li>• 作品会在内容生成完成后自动保存</li>
+          <li>• 作品会在内容生成完成后自动保存到数据库</li>
           <li>• 点击作品卡片可查看详情并加载参数到创作页</li>
+          <li>• 支持分页加载，每页 {PAGE_SIZE} 个作品</li>
           <li>• 支持搜索和状态筛选</li>
         </ul>
       </div>

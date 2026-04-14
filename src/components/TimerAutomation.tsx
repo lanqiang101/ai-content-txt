@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Clock, Plus, X, Loader2 } from "lucide-react";
+import { Clock, Plus, X, Loader2, RotateCcw } from "lucide-react";
 import { useStore } from "../store/useStore";
 import { useGeneration } from "../hooks/useGeneration";
 import { CYCLE_CONFIG } from "../hooks/constants";
@@ -140,6 +140,14 @@ export const TimerAutomation: React.FC = () => {
     });
   };
 
+  const handleResetBatch = () => {
+    setGeneratedCount(0);
+    setIsGenerating(false);
+    setTimerAutomation({ isRunning: false });
+    resetGeneration();
+    console.log("✅ 批量创作已重置");
+  };
+
   return (
     <div className="space-y-4">
       <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
@@ -248,32 +256,41 @@ export const TimerAutomation: React.FC = () => {
         </div>
       </div>
 
-      {/* 进度显示 */}
-      {timerAutomation.isRunning && (
-        <div className="flex items-center gap-3 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-          {isGenerating && (
-            <Loader2
-              size={18}
-              className="animate-spin text-blue-600 dark:text-blue-400"
-            />
+      {/* 进度显示 + 重置按钮 */}
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex-1">
+          {timerAutomation.isRunning && (
+            <div className="flex items-center gap-3 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+              {isGenerating && (
+                <Loader2
+                  size={18}
+                  className="animate-spin text-blue-600 dark:text-blue-400"
+                />
+              )}
+              <div className="text-sm text-blue-700 dark:text-blue-300">
+                {isGenerating
+                  ? `正在生成第 ${generatedCount + 1}/${timerAutomation.bookCount} 本...`
+                  : `等待当前创作完成，准备开始下一本...`}
+              </div>
+            </div>
           )}
-          <div className="text-sm text-blue-700 dark:text-blue-300">
-            {isGenerating
-              ? `正在生成第 ${generatedCount + 1}/${timerAutomation.bookCount} 本...`
-              : `等待当前创作完成，准备开始下一本...`}
-          </div>
+          {!timerAutomation.isRunning && generatedCount > 0 && (
+            <div className="flex items-center gap-3 p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
+              <Clock size={18} className="text-green-600 dark:text-green-400" />
+              <div className="text-sm text-green-700 dark:text-green-300">
+                已完成 {generatedCount}/{timerAutomation.bookCount} 本自动创作
+              </div>
+            </div>
+          )}
         </div>
-      )}
-
-      {/* 完成统计 */}
-      {!timerAutomation.isRunning && generatedCount > 0 && (
-        <div className="flex items-center gap-3 p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
-          <Clock size={18} className="text-green-600 dark:text-green-400" />
-          <div className="text-sm text-green-700 dark:text-green-300">
-            已完成 {generatedCount}/{timerAutomation.bookCount} 本自动创作
-          </div>
-        </div>
-      )}
+        <button
+          onClick={handleResetBatch}
+          className="flex items-center gap-2 px-4 py-3 text-sm font-medium text-orange-600 bg-orange-50 hover:bg-orange-100 dark:bg-orange-900/20 dark:hover:bg-orange-900/40 dark:text-orange-400 rounded-lg transition-all whitespace-nowrap"
+        >
+          <RotateCcw size={16} />
+          重置批量
+        </button>
+      </div>
     </div>
   );
 };

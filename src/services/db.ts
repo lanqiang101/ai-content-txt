@@ -21,7 +21,7 @@ export function isInitialized(): boolean {
 
 // ========== 作品 API ==========
 export async function getWorks(page: number = 1, pageSize: number = 20): Promise<any> {
-  const response = await fetch(`${API_BASE}/api/works?page=${page}&pageSize=${pageSize}`);
+  const response = await fetch(`${API_BASE}/api/works/list?page=${page}&pageSize=${pageSize}`);
   if (!response.ok) {
     throw new Error(`获取作品列表失败: ${response.status}`);
   }
@@ -61,7 +61,7 @@ export async function getWorkChapters(id: string): Promise<any[]> {
 }
 
 export async function addWork(work: any): Promise<any> {
-  const response = await fetch(`${API_BASE}/api/works`, {
+  const response = await fetch(`${API_BASE}/api/works/add`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(work),
