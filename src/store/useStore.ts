@@ -385,12 +385,30 @@ export const useStore = create<AppState>()(
           generation: initialGeneration,
         }),
         setWorks: (works: Work[]) => set({ works }),
-        addWork: (work: Work) => set((state) => ({
-          works: [work, ...state.works],
-        })),
-        updateWork: (id: string, updates: Partial<Work>) => set((state) => ({
-          works: state.works.map(w => w.id === id ? { ...w, ...updates } : w),
-        })),
+        addWork: async (work: Work) => {
+          set((state) => ({
+            works: [work, ...state.works],
+          }));
+          // 保存到数据库
+          try {
+            await dbService.addWork(work);
+            console.log('✅ 作品已保存到数据库:', work.id);
+          } catch (error) {
+            console.error('❌ 保存作品到数据库失败:', error);
+          }
+        },
+        updateWork: async (id: string, updates: Partial<Work>) => {
+          set((state) => ({
+            works: state.works.map(w => w.id === id ? { ...w, ...updates } : w),
+          }));
+          // 更新到数据库
+          try {
+            await dbService.updateWork(id, updates);
+            console.log('✅ 作品已更新到数据库:', id);
+          } catch (error) {
+            console.error('❌ 更新作品到数据库失败:', error);
+          }
+        },
         deleteWork: (id: string) => set((state) => ({
           works: state.works.filter(w => w.id !== id),
         })),

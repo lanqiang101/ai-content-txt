@@ -21,7 +21,7 @@ export function isInitialized(): boolean {
 
 // ========== 作品 API ==========
 export async function getWorks(page: number = 1, pageSize: number = 20): Promise<any> {
-  const response = await fetch(`${API_BASE}/api/works/getList?page=${page}&pageSize=${pageSize}`);
+  const response = await fetch(`${API_BASE}/api/works?page=${page}&pageSize=${pageSize}`);
   if (!response.ok) {
     throw new Error(`获取作品列表失败: ${response.status}`);
   }
@@ -29,7 +29,7 @@ export async function getWorks(page: number = 1, pageSize: number = 20): Promise
 }
 
 export async function getWorkInfo(id: string): Promise<any> {
-  const response = await fetch(`${API_BASE}/api/works/getInfo?id=${id}`);
+  const response = await fetch(`${API_BASE}/api/works/${id}`);
   if (!response.ok) {
     throw new Error(`获取作品信息失败: ${response.status}`);
   }
@@ -37,7 +37,7 @@ export async function getWorkInfo(id: string): Promise<any> {
 }
 
 export async function getWorkFull(id: string): Promise<any> {
-  const response = await fetch(`${API_BASE}/api/works/getFull?id=${id}`);
+  const response = await fetch(`${API_BASE}/api/works/${id}/full`);
   if (!response.ok) {
     throw new Error(`获取作品完整信息失败: ${response.status}`);
   }
@@ -45,7 +45,7 @@ export async function getWorkFull(id: string): Promise<any> {
 }
 
 export async function getWorksByStatus(status: string, page: number = 1, pageSize: number = 20): Promise<any> {
-  const response = await fetch(`${API_BASE}/api/works/getByStatus?status=${status}&page=${page}&pageSize=${pageSize}`);
+  const response = await fetch(`${API_BASE}/api/works/status/${status}?page=${page}&pageSize=${pageSize}`);
   if (!response.ok) {
     throw new Error(`获取作品列表失败: ${response.status}`);
   }
@@ -53,7 +53,7 @@ export async function getWorksByStatus(status: string, page: number = 1, pageSiz
 }
 
 export async function getWorkChapters(id: string): Promise<any[]> {
-  const response = await fetch(`${API_BASE}/api/works/getChapters?id=${id}`);
+  const response = await fetch(`${API_BASE}/api/works/${id}/chapters`);
   if (!response.ok) {
     throw new Error(`获取章节列表失败: ${response.status}`);
   }
@@ -61,7 +61,7 @@ export async function getWorkChapters(id: string): Promise<any[]> {
 }
 
 export async function addWork(work: any): Promise<any> {
-  const response = await fetch(`${API_BASE}/api/works/add`, {
+  const response = await fetch(`${API_BASE}/api/works`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(work),
@@ -70,26 +70,25 @@ export async function addWork(work: any): Promise<any> {
 }
 
 export async function updateWork(id: string, updates: any): Promise<any> {
-  const response = await fetch(`${API_BASE}/api/works/update`, {
-    method: 'POST',
+  const response = await fetch(`${API_BASE}/api/works/${id}`, {
+    method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ id, ...updates }),
+    body: JSON.stringify(updates),
   });
   return response.json();
 }
 
 export async function deleteWork(id: string): Promise<{ success: boolean }> {
-  const response = await fetch(`${API_BASE}/api/works/delete`, {
-    method: 'POST',
+  const response = await fetch(`${API_BASE}/api/works/${id}`, {
+    method: 'DELETE',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ id }),
   });
   return response.json();
 }
 
 // ========== 角色 API ==========
 export async function getCharactersByWork(workId: string): Promise<any[]> {
-  const response = await fetch(`${API_BASE}/api/characters/getListByWork?workId=${workId}`);
+  const response = await fetch(`${API_BASE}/api/characters/work/${workId}`);
   if (!response.ok) {
     throw new Error(`获取角色列表失败: ${response.status}`);
   }
@@ -97,7 +96,7 @@ export async function getCharactersByWork(workId: string): Promise<any[]> {
 }
 
 export async function getCharacterInfo(id: string): Promise<any> {
-  const response = await fetch(`${API_BASE}/api/characters/getInfo?id=${id}`);
+  const response = await fetch(`${API_BASE}/api/characters/${id}`);
   if (!response.ok) {
     throw new Error(`获取角色信息失败: ${response.status}`);
   }
@@ -105,7 +104,7 @@ export async function getCharacterInfo(id: string): Promise<any> {
 }
 
 export async function addCharacter(character: any): Promise<any> {
-  const response = await fetch(`${API_BASE}/api/characters/add`, {
+  const response = await fetch(`${API_BASE}/api/characters`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(character),
@@ -114,17 +113,17 @@ export async function addCharacter(character: any): Promise<any> {
 }
 
 export async function updateCharacter(id: string, updates: any): Promise<any> {
-  const response = await fetch(`${API_BASE}/api/characters/update`, {
-    method: 'POST',
+  const response = await fetch(`${API_BASE}/api/characters/${id}`, {
+    method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ id, ...updates }),
+    body: JSON.stringify(updates),
   });
   return response.json();
 }
 
 export async function deleteCharacter(id: string): Promise<{ success: boolean }> {
-  const response = await fetch(`${API_BASE}/api/characters/delete`, {
-    method: 'POST',
+  const response = await fetch(`${API_BASE}/api/characters/${id}`, {
+    method: 'DELETE',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ id }),
   });
@@ -133,7 +132,7 @@ export async function deleteCharacter(id: string): Promise<{ success: boolean }>
 
 // ========== 分镜 API ==========
 export async function getStoryboardsByWork(workId: string): Promise<any[]> {
-  const response = await fetch(`${API_BASE}/api/storyboards/getListByWork?workId=${workId}`);
+  const response = await fetch(`${API_BASE}/api/storyboards/work/${workId}`);
   if (!response.ok) {
     throw new Error(`获取分镜列表失败: ${response.status}`);
   }
@@ -141,7 +140,7 @@ export async function getStoryboardsByWork(workId: string): Promise<any[]> {
 }
 
 export async function getStoryboardInfo(id: string): Promise<any> {
-  const response = await fetch(`${API_BASE}/api/storyboards/getInfo?id=${id}`);
+  const response = await fetch(`${API_BASE}/api/storyboards/${id}`);
   if (!response.ok) {
     throw new Error(`获取分镜信息失败: ${response.status}`);
   }
@@ -149,7 +148,7 @@ export async function getStoryboardInfo(id: string): Promise<any> {
 }
 
 export async function addStoryboard(storyboard: any): Promise<any> {
-  const response = await fetch(`${API_BASE}/api/storyboards/add`, {
+  const response = await fetch(`${API_BASE}/api/storyboards`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(storyboard),
@@ -158,8 +157,8 @@ export async function addStoryboard(storyboard: any): Promise<any> {
 }
 
 export async function deleteStoryboard(id: string): Promise<{ success: boolean }> {
-  const response = await fetch(`${API_BASE}/api/storyboards/delete`, {
-    method: 'POST',
+  const response = await fetch(`${API_BASE}/api/storyboards/${id}`, {
+    method: 'DELETE',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ id }),
   });
@@ -168,7 +167,7 @@ export async function deleteStoryboard(id: string): Promise<{ success: boolean }
 
 // ========== 小说大纲 API ==========
 export async function getOutlinesByWork(workId: string): Promise<any[]> {
-  const response = await fetch(`${API_BASE}/api/outlines/getListByWork?workId=${workId}`);
+  const response = await fetch(`${API_BASE}/api/outlines/work/${workId}`);
   if (!response.ok) {
     throw new Error(`获取大纲列表失败: ${response.status}`);
   }
@@ -176,7 +175,7 @@ export async function getOutlinesByWork(workId: string): Promise<any[]> {
 }
 
 export async function getOutlineInfo(id: string): Promise<any> {
-  const response = await fetch(`${API_BASE}/api/outlines/getInfo?id=${id}`);
+  const response = await fetch(`${API_BASE}/api/outlines/${id}`);
   if (!response.ok) {
     throw new Error(`获取大纲信息失败: ${response.status}`);
   }
@@ -184,7 +183,7 @@ export async function getOutlineInfo(id: string): Promise<any> {
 }
 
 export async function addOutline(outline: any): Promise<any> {
-  const response = await fetch(`${API_BASE}/api/outlines/add`, {
+  const response = await fetch(`${API_BASE}/api/outlines`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(outline),
@@ -193,17 +192,17 @@ export async function addOutline(outline: any): Promise<any> {
 }
 
 export async function updateOutline(id: string, outline: any): Promise<any> {
-  const response = await fetch(`${API_BASE}/api/outlines/update`, {
-    method: 'POST',
+  const response = await fetch(`${API_BASE}/api/outlines/${id}`, {
+    method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ id, ...outline }),
+    body: JSON.stringify(outline),
   });
   return response.json();
 }
 
 export async function deleteOutline(id: string): Promise<{ success: boolean }> {
-  const response = await fetch(`${API_BASE}/api/outlines/delete`, {
-    method: 'POST',
+  const response = await fetch(`${API_BASE}/api/outlines/${id}`, {
+    method: 'DELETE',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ id }),
   });
@@ -212,7 +211,7 @@ export async function deleteOutline(id: string): Promise<{ success: boolean }> {
 
 // ========== 生成历史 API ==========
 export async function getHistory(page: number = 1, pageSize: number = 20): Promise<any> {
-  const response = await fetch(`${API_BASE}/api/history/getList?page=${page}&pageSize=${pageSize}`);
+  const response = await fetch(`${API_BASE}/api/history?page=${page}&pageSize=${pageSize}`);
   if (!response.ok) {
     throw new Error(`获取历史列表失败: ${response.status}`);
   }
@@ -220,7 +219,7 @@ export async function getHistory(page: number = 1, pageSize: number = 20): Promi
 }
 
 export async function addHistory(item: any): Promise<any> {
-  const response = await fetch(`${API_BASE}/api/history/add`, {
+  const response = await fetch(`${API_BASE}/api/history`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(item),
@@ -229,8 +228,8 @@ export async function addHistory(item: any): Promise<any> {
 }
 
 export async function deleteHistory(id: string): Promise<{ success: boolean }> {
-  const response = await fetch(`${API_BASE}/api/history/delete`, {
-    method: 'POST',
+  const response = await fetch(`${API_BASE}/api/history/${id}`, {
+    method: 'DELETE',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ id }),
   });
@@ -239,7 +238,7 @@ export async function deleteHistory(id: string): Promise<{ success: boolean }> {
 
 // ========== 流水线配置 API ==========
 export async function getPipelineConfigList(): Promise<any[]> {
-  const response = await fetch(`${API_BASE}/api/config/pipeline/getList`);
+  const response = await fetch(`${API_BASE}/api/config/pipeline`);
   if (!response.ok) {
     throw new Error(`获取流水线配置失败: ${response.status}`);
   }
@@ -247,7 +246,7 @@ export async function getPipelineConfigList(): Promise<any[]> {
 }
 
 export async function addPipelineConfig(config: any): Promise<any> {
-  const response = await fetch(`${API_BASE}/api/config/pipeline/add`, {
+  const response = await fetch(`${API_BASE}/api/config/pipeline`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(config),
@@ -256,19 +255,18 @@ export async function addPipelineConfig(config: any): Promise<any> {
 }
 
 export async function updatePipelineConfig(id: string, config: any): Promise<any> {
-  const response = await fetch(`${API_BASE}/api/config/pipeline/update`, {
-    method: 'POST',
+  const response = await fetch(`${API_BASE}/api/config/pipeline/${id}`, {
+    method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ id, ...config }),
+    body: JSON.stringify(config),
   });
   return response.json();
 }
 
 export async function deletePipelineConfig(id: string): Promise<{ success: boolean }> {
-  const response = await fetch(`${API_BASE}/api/config/pipeline/delete`, {
-    method: 'POST',
+  const response = await fetch(`${API_BASE}/api/config/pipeline/${id}`, {
+    method: 'DELETE',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ id }),
   });
   return response.json();
 }
@@ -283,7 +281,7 @@ export async function getModels(): Promise<any[]> {
 }
 
 export async function getModelInfo(id: number): Promise<any> {
-  const response = await fetch(`${API_BASE}/api/config/models/getInfo?id=${id}`);
+  const response = await fetch(`${API_BASE}/api/config/models/${id}`);
   if (!response.ok) {
     throw new Error(`获取模型信息失败: ${response.status}`);
   }
@@ -291,7 +289,7 @@ export async function getModelInfo(id: number): Promise<any> {
 }
 
 export async function addModel(model: any): Promise<any> {
-  const response = await fetch(`${API_BASE}/api/config/models/add`, {
+  const response = await fetch(`${API_BASE}/api/config/models`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(model),
@@ -300,19 +298,18 @@ export async function addModel(model: any): Promise<any> {
 }
 
 export async function updateModel(id: number, model: any): Promise<any> {
-  const response = await fetch(`${API_BASE}/api/config/models/update`, {
-    method: 'POST',
+  const response = await fetch(`${API_BASE}/api/config/models/${id}`, {
+    method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ id, ...model }),
+    body: JSON.stringify(model),
   });
   return response.json();
 }
 
 export async function deleteModel(id: number): Promise<{ success: boolean }> {
-  const response = await fetch(`${API_BASE}/api/config/models/delete`, {
-    method: 'POST',
+  const response = await fetch(`${API_BASE}/api/config/models/${id}`, {
+    method: 'DELETE',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ id }),
   });
   return response.json();
 }
@@ -337,7 +334,7 @@ export async function saveSystemConfig(config: any): Promise<any> {
 
 // ========== 应用配置 API ==========
 export async function getAppConfig(key: string): Promise<any> {
-  const response = await fetch(`${API_BASE}/api/config/app/getInfo?key=${key}`);
+  const response = await fetch(`${API_BASE}/api/config/app/${key}`);
   if (!response.ok) {
     throw new Error(`获取应用配置失败: ${response.status}`);
   }
@@ -345,7 +342,7 @@ export async function getAppConfig(key: string): Promise<any> {
 }
 
 export async function saveAppConfig(key: string, value: any): Promise<any> {
-  const response = await fetch(`${API_BASE}/api/config/app/save?key=${key}`, {
+  const response = await fetch(`${API_BASE}/api/config/app/${key}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(value),
