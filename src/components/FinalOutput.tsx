@@ -1,5 +1,4 @@
 import React, { useState } from "react";
-import { useNavigate } from "react-router-dom";
 import {
   Copy,
   Download,
@@ -10,7 +9,6 @@ import {
   Wand2,
   X,
   Loader2,
-  Clapperboard,
 } from "lucide-react";
 import { GenerationState } from "../types";
 import { useStore } from "../store/useStore";
@@ -21,15 +19,13 @@ interface FinalOutputProps {
 }
 
 export const FinalOutput: React.FC<FinalOutputProps> = ({ generation }) => {
-  const navigate = useNavigate();
   const [copied, setCopied] = useState(false);
   const [optimizeModalOpen, setOptimizeModalOpen] = useState(false);
   const [optimizeInstructions, setOptimizeInstructions] = useState("");
   const [isOptimizing, setIsOptimizing] = useState(false);
   const [optimizedResult, setOptimizedResult] = useState<string | null>(null);
-  const [isGeneratingStoryboard, setIsGeneratingStoryboard] = useState(false);
-  const { params, resetGeneration, currentWorkId } = useStore();
-  const { regenerateStageCycle, stopGeneration, runAllCycles, callModel, generateStoryboard } =
+  const { singleParams, resetGeneration } = useStore();
+  const { regenerateStageCycle, stopGeneration, runAllCycles, callModel } =
     useGeneration();
   const { stage3Result, isGenerating } = generation;
 
@@ -71,7 +67,7 @@ export const FinalOutput: React.FC<FinalOutputProps> = ({ generation }) => {
 
   const handleDownload = () => {
     const textToDownload = optimizedResult || stage3Result;
-    const fileName = `${params.type === "article" ? "article" : "novel"}-${params.topic.slice(0, 20).replace(/\s+/g, "-")}.txt`;
+    const fileName = `${singleParams.type === "article" ? "article" : "novel"}-${singleParams.topic.slice(0, 20).replace(/\s+/g, "-")}.txt`;
     const blob = new Blob([textToDownload], { type: "text/plain" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -106,15 +102,6 @@ ${optimizedResult || stage3Result}
       console.error("Optimize failed:", err);
     } finally {
       setIsOptimizing(false);
-    }
-  };
-
-  const handleGenerateStoryboard = async () => {
-    const workId = currentWorkId || useStore.getState().works[0]?.id;
-    if (workId) {
-      navigate(`/storyboard?workId=${workId}`);
-    } else {
-      alert('请先生成作品');
     }
   };
 
@@ -161,14 +148,6 @@ ${optimizedResult || stage3Result}
                 >
                   <RefreshCw size={16} />
                   重生成
-                </button>
-                <button
-                  onClick={handleGenerateStoryboard}
-                  disabled={isGeneratingStoryboard}
-                  className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-pink-600 bg-pink-50 hover:bg-pink-100 rounded-lg transition-all disabled:opacity-50"
-                >
-                  {isGeneratingStoryboard ? <Loader2 size={16} className="animate-spin" /> : <Clapperboard size={16} />}
-                  {isGeneratingStoryboard ? '生成中...' : '生成视频分镜'}
                 </button>
               </>
             )}

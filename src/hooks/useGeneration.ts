@@ -10,7 +10,7 @@ import { CYCLE_CONFIG } from './constants';
 export { CYCLE_CONFIG };
 
 export const useGeneration = () => {
-  const { params, generation } = useStore();
+  const { singleParams, generation } = useStore();
   const abortControllerRef = useRef<AbortController | null>(null);
   const { buildFullPrompt } = usePromptBuilder();
   const { startGeneration, stopGeneration, regenerateStageCycle } = useCycleGeneration();
@@ -28,8 +28,8 @@ export const useGeneration = () => {
   const start = useCallback(async () => {
     const abortController = new AbortController();
     abortControllerRef.current = abortController;
-    await startGeneration(params);
-  }, [params, startGeneration]);
+    await startGeneration(singleParams);
+  }, [singleParams, startGeneration]);
 
   const generateNextCycle = useCallback(async () => {
     // This is handled by startGeneration for now

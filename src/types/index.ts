@@ -1,43 +1,51 @@
 export type ContentType = 'article' | 'novel';
 export type ModelMode = 'local' | 'api';
-export type WorkStatus = 'drafting' | 'completed' | 'failed' | 'archived';
+export type WorkStatus = 'draft' | 'generating' | 'completed' | 'failed' | 'archived';
 export type StoryboardStyle = 'realistic' | 'anime' | 'ink' | '3d' | 'cartoon';
 
 // 分镜类型区分
-export type StoryboardType = 'drama' | 'comic';
-// drama = 漫剧（动态视频分镜，每个镜头有持续时间，用于生成短视频）
+export type StoryboardType = 'video' | 'comic';
+// video = 漫剧（动态视频分镜，每个镜头有持续时间，用于生成短视频）
 // comic = 漫画（静态分镜，每个分镜一格/一页，用于生成漫画）
 
 export interface ModelConfig {
-  id: number;
+  id: string;
   name: string;
-  mode?: ModelMode;
-  localUrl?: string;
-  apiUrl?: string;
   modelName: string;
-  apiKey?: string;
   baseUrl?: string;
-  maxTokens?: number;
-  temperature?: number;
   enabled: boolean;
+  mode: 'local' | 'remote' | 'openai' | 'api';
+  provider: string;
+  model: string;
+  apiKey?: string;
+  apiUrl?: string;
+  localUrl?: string;
+  temperature: number;
+  topP: number;
+  maxTokens: number;
+  timeout: number;
 }
 
 export interface StageModelConfig {
   models: ModelConfig[];
-  activeModelId: number;
+  activeModelId: string | null;
 }
 
 export interface PipelineConfig {
   stage1: StageModelConfig;
   stage2: StageModelConfig;
   stage3: StageModelConfig;
-  random: ModelConfig;
-  storyboard: StageModelConfig;
+  random?: StageModelConfig;
+  storyboard?: StageModelConfig;
+  enabledStages?: number[];
+  cyclesPerStage?: Record<number, number>;
+  autoContinue?: boolean;
+  stopAfterStage?: number;
 }
 
 export interface ReaderConfig {
   ageRange: string;
-  genderPreference: 'male' | 'female' | 'all';
+  genderPreference?: 'male' | 'female' | 'all';
   coreAppeal: string;
   taboo: string;
   targetPlatform: 'tomato' | 'qidian' | 'jjwxc' | 'zhihu' | 'short' | 'article';
@@ -83,6 +91,10 @@ export interface DetailConfig {
   locationDetails: string;
   atmosphere: 'depressed' | 'warm' | 'relaxed' | 'tense';
   randomInterlude: boolean;
+  environmentDescription?: number;
+  characterAppearance?: number;
+  psychologicalActivity?: number;
+  dialogueProportion?: number;
 }
 
 export interface EmotionConfig {
@@ -90,6 +102,9 @@ export interface EmotionConfig {
   empathyScenes: string;
   expressionStyle: 'reserved' | 'direct' | 'insincere';
   coreEmotion: string;
+  emotionalIntensity?: number;
+  emotionalFluctuation?: number;
+  dominantEmotion?: string;
 }
 
 export interface AntiAIConfig {
@@ -98,6 +113,7 @@ export interface AntiAIConfig {
   unpredictableTurnPercent: number;
   whitespacePercent: number;
   writingStyle: 'hard' | 'soft' | 'sharp' | 'humor' | 'art';
+  humanizeLevel?: number;
 }
 
 export interface GenerationParams {
@@ -114,13 +130,17 @@ export interface GenerationParams {
   detail: DetailConfig;
   emotion: EmotionConfig;
   antiAI: AntiAIConfig;
+  novelLength?: 'short' | 'medium' | 'long';
+  initialChapters?: number;
 }
 
 export interface CycleResult {
   stage: number;
   cycle: number;
-  result: string;
-  createdAt: number;
+  content?: string;
+  result?: string;
+  timestamp?: number;
+  createdAt?: number;
 }
 
 export interface StageData {
@@ -168,11 +188,13 @@ export interface Work {
   actualWordCount: number;
   chapterCount: number;
   status: WorkStatus;
-  createdAt: number;
-  updatedAt: number;
-  storyboardIds: string[];
+  chapters: Chapter[];
+  characters: CharacterDesc[];
+  storyboardIds?: string[];
   content?: string;
   generationParams?: GenerationParams;
+  createdAt: number;
+  updatedAt: number;
 }
 
 export interface WorkFull extends Work {
@@ -199,29 +221,38 @@ export interface OptimizationHistory {
   createdAt: number;
 }
 
-// 漫剧视频配置（原有保留扩展）
+// 视频设置
 export interface VideoSettings {
-  resolution: '1920x1080' | '1280x720' | '720x1280' | '1080x1920';
-  aspectRatio: '16:9' | '9:16' | '1:1';
-  fps: 24 | 30 | 60;
-  format: 'mp4' | 'mov' | 'webm';
+  resolution: string;
+  fps: number;
   duration: number;
-  clipDuration: number;
-  clipsPerEpisode: number;
-  distributionChannel: DistributionChannel;
+  style: string;
+  aspectRatio?: string;
+  codec?: string;
+  clipDuration?: number;
+  clipsPerEpisode?: number;
+  distributionChannel?: DistributionChannel;
+  format?: string;
 }
 
-// 漫画专属配置
+// 漫画设置
 export interface ComicSettings {
-  comicFormat: 'vertical_strip' | 'horizontal_page';
-  frameCount: number;
-  frameLayout: 'vertical' | 'horizontal' | 'mixed' | 'closeup_lead';
-  readOrder: 'top_to_bottom' | 'right_to_left' | 'left_to_right';
-  aspectRatio: '1:1' | '16:9' | '9:16' | '4:3';
-  outputFormat: 'png' | 'jpg' | 'webp';
+  style: string;
+  panelCount: number;
+  colorScheme: string;
+  comicFormat?: 'webtoon' | 'manga' | 'manhua' | 'vertical_strip' | 'horizontal_page';
+  frameCount?: number;
+  frameLayout?: 'single' | 'double' | 'grid' | 'vertical' | 'horizontal' | 'mixed' | 'closeup_lead';
+  readOrder?: 'left-to-right' | 'right-to-left' | 'top-to-bottom' | 'top_to_bottom' | 'right_to_left' | 'left_to_right';
+  aspectRatio?: string;
+  outputFormat?: string;
 }
 
 export type DistributionChannel =
+  | 'douyin'
+  | 'bilibili'
+  | 'youtube'
+  | 'other'
   | '抖音'
   | '快手'
   | 'B站'
@@ -238,7 +269,9 @@ export type AnimeStyle =
   | '3d'
   | 'cartoon'
   | 'semi-realistic'
-  | 'cel-shaded';
+  | 'cel-shaded'
+  | 'manga'
+  | 'chibi';
 
 export interface CharacterDesc {
   id: string;
@@ -248,6 +281,8 @@ export interface CharacterDesc {
   personality: string;
   outfit: string;
   role: 'main' | 'supporting';
+  workId?: string;
+  createdAt?: number;
 }
 
 export interface SceneDesc {
@@ -287,7 +322,7 @@ export interface StoryboardConfigBase {
 
 // 漫剧分镜配置
 export interface DramaStoryboardConfig extends StoryboardConfigBase {
-  type: 'drama';
+  type: 'video';
   videoSettings: VideoSettings;
   rhythm: 'slow' | 'medium' | 'fast';
 }
@@ -334,25 +369,16 @@ export interface BookGenerationState {
 }
 
 export interface GenerationState {
+  isGenerating: boolean;
+  completedCycles: number;
+  cycleResults: CycleResult[];
+  isGeneratingStage: number | null;
+  error: string | null;
   currentStage: number;
   currentCycle: number;
-  completedCycles: number;
   stage1Result: string;
   stage2Result: string;
   stage3Result: string;
-  cycleResults: CycleResult[];
-  isGenerating: boolean;
-  isGeneratingStage: number | null;
-  error: string | null;
-  bookState?: BookGenerationState;
-}
-
-export interface ContentHistory {
-  id: string;
-  type: ContentType;
-  topic: string;
-  result: GenerationParams;
-  createdAt: number;
 }
 
 // 批量自动创作配置
@@ -366,3 +392,235 @@ export interface BatchAutomationConfig {
   // 批量创作独立参数配置 - 完全独立于单次创作
   params: GenerationParams;
 }
+
+// 生成状态
+export interface GenerationState {
+  isGenerating: boolean;
+  completedCycles: number;
+  cycleResults: CycleResult[];
+  isGeneratingStage: number | null;
+  error: string | null;
+  currentStage: number;
+  currentCycle: number;
+  stage1Result: string;
+  stage2Result: string;
+  stage3Result: string;
+}
+
+// 续写状态
+export interface ContinueWritingState {
+  workId: string | null;
+  targetChapterNumber: number | null;
+  isContinuing: boolean;
+}
+
+// 定时器自动化配置
+export interface TimerAutomationState {
+  isRunning: boolean;
+  bookCount: number;
+  minWordCount: number;
+  maxWordCount: number;
+  themes: string[];
+}
+
+// 内容历史
+export interface ContentHistory {
+  id: string;
+  workId: string;
+  content: string;
+  chapterNumber?: number;
+  timestamp: number;
+  type: 'generation' | 'optimization' | 'continuation';
+  topic?: string;
+}
+
+// 分镜结果
+export interface StoryboardResult {
+  id: string;
+  workId: string;
+  chapterNumber?: number;
+  scenes: SceneDesc[];
+  config: StoryboardConfig;
+  createdAt: number;
+  type: StoryboardType;
+}
+
+// 作品
+export interface Work {
+  id: string;
+  title: string;
+  topic: string;
+  keywords: string;
+  type: ContentType;
+  expectedWordCount: number;
+  actualWordCount: number;
+  chapterCount: number;
+  status: WorkStatus;
+  chapters: Chapter[];
+  characters: CharacterDesc[];
+  storyboardIds?: string[];
+  content?: string;
+  generationParams?: GenerationParams;
+  createdAt: number;
+  updatedAt: number;
+}
+
+// 章节
+export interface Chapter {
+  id: string;
+  workId?: string;
+  title: string;
+  content: string;
+  summary?: string;
+  chapterNumber?: number;
+  wordCount?: number;
+  createdAt: number;
+  updatedAt: number;
+}
+
+// 应用状态
+export interface AppState {
+  // UI 状态
+  darkMode: boolean;
+  toggleDarkMode: () => void;
+  configOpen: boolean;
+  toggleConfig: () => void;
+  historyOpen: boolean;
+  toggleHistory: () => void;
+  worksOpen: boolean;
+  toggleWorks: () => void;
+  
+  // 生成相关
+  generation: GenerationState;
+  setGeneration: (state: Partial<GenerationState>) => void;
+  resetGeneration: () => void;
+  
+  // 参数配置
+  params: GenerationParams;
+  setParams: (params: Partial<GenerationParams>) => void;
+  
+  // 流水线配置
+  config: PipelineConfig;
+  setConfig: (config: Partial<PipelineConfig>) => void;
+  resetConfig: () => void;
+  
+  // 作品管理
+  currentWorkId: string | null;
+  setCurrentWorkId: (id: string | null) => void;
+  works: Work[];
+  setCurrentWork: (work: Work | null) => void;
+  deleteWork: (id: string) => void;
+  
+  // 分镜管理
+  storyboards: StoryboardResult[];
+  addStoryboard: (storyboard: StoryboardResult) => void;
+  deleteStoryboard: (id: string) => void;
+  
+  // 人物管理
+  characters: CharacterDesc[];
+  addCharacter: (character: Omit<CharacterDesc, 'id' | 'createdAt'>) => void;
+  deleteCharacter: (id: string) => void;
+  
+  // 历史记录
+  history: ContentHistory[];
+  addToHistory: (item: Omit<ContentHistory, 'id'>) => void;
+  clearHistory: () => void;
+  loadFromHistory: (id: string) => void;
+  deleteFromHistory: (id: string) => void;
+  
+  // 续写
+  continueWriting: ContinueWritingState;
+  setContinueWriting: (state: Partial<ContinueWritingState>) => void;
+  resetContinueWriting: () => void;
+  
+  // 定时器自动化
+  timerAutomation: TimerAutomationState;
+  setTimerAutomation: (state: Partial<TimerAutomationState>) => void;
+}
+
+// 默认生成参数
+export const defaultGenerationParams: GenerationParams = {
+  type: 'novel',
+  topic: '',
+  title: '',
+  keywords: '',
+  wordCount: 3000,
+  style: '现代都市',
+  reader: {
+    ageRange: '18-35岁',
+    coreAppeal: '强情节、快节奏',
+    taboo: '政治敏感、色情暴力',
+    targetPlatform: 'tomato',
+  },
+  character: {
+    coreFlaw: '',
+    motivation: '',
+    habits: '',
+    emotionThreshold: '',
+    growthArc: '',
+    secretIntensity: 5,
+    goldenSentencePerThousand: 2,
+    arcType: 'positive',
+    supportingBackstory: false,
+  },
+  plot: {
+    mainChain: '',
+    foreshadowing: '',
+    branchRatio: 0.3,
+    causalConstraint: true,
+    checkReversal: true,
+    hookWordCount: 100,
+    twistPerThousand: 3,
+    structure: 'linear',
+    forceConflictAtStart: true,
+    seedForeshadow: true,
+    openEnding: false,
+  },
+  rhythm: {
+    alternation: 'fast-slow',
+    climaxDensity: 'medium',
+    chapterEndHook: true,
+    conflictFrequency: 3,
+    bufferNodes: true,
+    averageParaLength: 'medium',
+  },
+  detail: {
+    senseRatio: 'balanced',
+    locationDetails: 'moderate',
+    atmosphere: 'warm',
+    randomInterlude: false,
+    environmentDescription: 30,
+    characterAppearance: 20,
+    psychologicalActivity: 40,
+    dialogueProportion: 50,
+  },
+  emotion: {
+    progression: 'gradual',
+    empathyScenes: 'moderate',
+    expressionStyle: 'direct',
+    coreEmotion: 'hope',
+    emotionalIntensity: 7,
+    emotionalFluctuation: 5,
+    dominantEmotion: 'positive',
+  },
+  antiAI: {
+    templateDeletePercent: 30,
+    casualTolerance: 50,
+    unpredictableTurnPercent: 20,
+    whitespacePercent: 10,
+    writingStyle: 'soft',
+    humanizeLevel: 7,
+  },
+  novelLength: 'medium',
+  initialChapters: 10,
+};
+
+// 默认流水线配置
+export const defaultPipelineConfig: PipelineConfig = {
+  stage1: { models: [], activeModelId: null },
+  stage2: { models: [], activeModelId: null },
+  stage3: { models: [], activeModelId: null },
+  enabledStages: [1, 2, 3],
+  cyclesPerStage: { 1: 2, 2: 3, 3: 2 },
+  autoContinue: true,
+};

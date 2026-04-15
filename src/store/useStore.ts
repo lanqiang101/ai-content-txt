@@ -1,3 +1,4 @@
+
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import {
@@ -275,7 +276,9 @@ interface TimerAutomation extends Omit<BatchAutomationConfig, 'params'> {
 
 interface AppState {
   config: PipelineConfig;
-  params: GenerationParams;
+  params: GenerationParams; // 保留作为向后兼容,但主要使用singleParams和batchParams
+  singleParams: GenerationParams; // 单篇创作独立参数
+  batchParams: GenerationParams; // 批量创作独立参数
   generation: GenerationState;
   history: ContentHistory[];
   works: Work[];
@@ -290,7 +293,9 @@ interface AppState {
   timerAutomation: TimerAutomation;
 
   setConfig: (newConfig: Partial<PipelineConfig>) => void;
-  setParams: (newParams: Partial<GenerationParams>) => void;
+  setParams: (newParams: Partial<GenerationParams>) => void; // 保留作为向后兼容
+  setSingleParams: (newParams: Partial<GenerationParams>) => void; // 设置单篇创作参数
+  setBatchParams: (newParams: Partial<GenerationParams>) => void; // 设置批量创作参数
   setGeneration: (newGeneration: Partial<GenerationState>) => void;
   addToHistory: (item: ContentHistory) => void;
   clearHistory: () => void;
@@ -335,6 +340,8 @@ export const useStore = create<AppState>()(
       const initialState = {
         config: loadInitialConfig(),
         params: loadInitialParams(),
+        singleParams: loadInitialParams(), // 单篇创作独立参数
+        batchParams: { ...loadInitialParams(), themes: [] }, // 批量创作独立参数(不包含themes字段,因为会在TimerAutomation中管理)
         generation: initialGeneration,
         history: loadInitialHistory(),
         works: loadInitialWorks(),
@@ -353,6 +360,12 @@ export const useStore = create<AppState>()(
         })),
         setParams: (newParams: Partial<GenerationParams>) => set((state) => ({
           params: { ...state.params, ...newParams },
+        })),
+        setSingleParams: (newParams: Partial<GenerationParams>) => set((state) => ({
+          singleParams: { ...state.singleParams, ...newParams },
+        })),
+        setBatchParams: (newParams: Partial<GenerationParams>) => set((state) => ({
+          batchParams: { ...state.batchParams, ...newParams },
         })),
         setGeneration: (newGeneration: Partial<GenerationState>) => set((state) => ({
           generation: { ...state.generation, ...newGeneration },
@@ -457,3 +470,7 @@ export const useStore = create<AppState>()(
     }
   )
 );
+
+
+
+
