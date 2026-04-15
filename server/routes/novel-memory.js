@@ -1,149 +1,145 @@
 import express from 'express';
-import { NovelMemoryManager } from '../utils/memory-manager.js';
 
-export default function (chromaClient) {
+export default function (memoryManager) {
   const router = express.Router();
 
-  // 初始化记忆管理器
-  const memoryManager = new NovelMemoryManager(chromaClient);
-  memoryManager.init().catch(err => console.error('[NovelMemory] Init failed:', err));
-
   /**
-   * 检索相关记忆
-   * POST /api/novel-memory/retrieve
-   * body: { query: string, topK?: number }
+   * 检索相关记忆 (别名: search)
+   * POST /api/memory/search
+   * body: { query: string, topK?: number, filterType?: string }
    */
-  router.post('/retrieve', async (req, res) => {
+  router.post('/search', async (req, res) => {
     try {
-      const { query, topK = 5 } = req.body;
-      const results = await memoryManager.retrieveRelated(query, topK);
-      const formatted = memoryManager.formatMemoryForPrompt(results);
+      if (!memoryManager || !memoryManager.isInitialized) {
+        return res.json({
+          success: false,
+          error: '记忆管理系统未初始化',
+          results: [],
+          formatted: '',
+        });
+      }
+
+      const { query, topK = 5, filterType = null } = req.body;
+      
+      if (!query) {
+        return res.status(400).json({
+          success: false,
+          error: '查询文本不能为空',
+        });
+      }
+
+      const results = await memoryManager.retrieveRelated(query, topK, filterType);
+      const formatted = formatMemoryForPrompt(results);
+      
       res.json({
         success: true,
         results,
         formatted,
       });
     } catch (error) {
+      console.error('[NovelMemory] Search failed:', error);
       res.status(500).json({ success: false, error: error.message });
     }
   });
 
   /**
-   * 添加人物
-   * POST /api/novel-memory/character
+   * 检索相关记忆
+   * POST /api/memory/retrieve
+   * body: { query: string, topK?: number, filterType?: string }
    */
-  router.post('/character', async (req, res) => {
+  router.post('/retrieve', async (req, res) => {
     try {
-      await memoryManager.addCharacter(req.body);
-      res.json({ success: true });
+      if (!memoryManager || !memoryManager.isInitialized) {
+        return res.json({
+          success: false,
+          error: '记忆管理系统未初始化',
+          results: [],
+          formatted: '',
+        });
+      }
+
+      const { query, topK = 5, filterType = null } = req.body;
+      
+      if (!query) {
+        return res.status(400).json({
+          success: false,
+          error: '查询文本不能为空',
+        });
+      }
+
+      const results = await memoryManager.retrieveRelated(query, topK, filterType);
+      const formatted = formatMemoryForPrompt(results);
+      
+      res.json({
+        success: true,
+        results,
+        formatted,
+      });
     } catch (error) {
+      console.error('[NovelMemory] Retrieve failed:', error);
       res.status(500).json({ success: false, error: error.message });
     }
   });
 
   /**
-   * 更新人物
-   * PUT /api/novel-memory/character/:id
+   * 获取记忆统计信息
+   * GET /api/memory/stats
    */
-  router.put('/character/:id', async (req, res) => {
+  router.get('/stats', (req, res) => {
     try {
-      await memoryManager.updateCharacter(req.params.id, req.body);
-      res.json({ success: true });
-    } catch (error) {
-      res.status(500).json({ success: false, error: error.message });
-    }
-  });
+      if (!memoryManager || !memoryManager.isInitialized) {
+        return res.json({
+          initialized: false,
+          totalMemories: 0,
+          byType: {},
+        });
+      }
 
-  /**
-   * 添加伏笔
-   * POST /api/novel-memory/foreshadowing
-   */
-  router.post('/foreshadowing', async (req, res) => {
-    try {
-      await memoryManager.addForeshadowing(req.body);
-      res.json({ success: true });
+      const stats = memoryManager.getStats();
+      res.json(stats);
     } catch (error) {
-      res.status(500).json({ success: false, error: error.message });
-    }
-  });
-
-  /**
-   * 标记伏笔已回收
-   * PUT /api/novel-memory/foreshadowing/:id/resolve
-   */
-  router.put('/foreshadowing/:id/resolve', async (req, res) => {
-    try {
-      await memoryManager.resolveForeshadowing(req.params.id);
-      res.json({ success: true });
-    } catch (error) {
-      res.status(500).json({ success: false, error: error.message });
-    }
-  });
-
-  /**
-   * 添加章节
-   * POST /api/novel-memory/chapter
-   */
-  router.post('/chapter', async (req, res) => {
-    try {
-      await memoryManager.addChapter(req.body);
-      res.json({ success: true });
-    } catch (error) {
-      res.status(500).json({ success: false, error: error.message });
-    }
-  });
-
-  /**
-   * 获取所有未回收伏笔
-   * GET /api/novel-memory/foreshadowings/unresolved
-   */
-  router.get('/foreshadowings/unresolved', async (req, res) => {
-    try {
-      const result = await memoryManager.getUnresolvedForeshadowings();
-      res.json({ success: true, data: result });
-    } catch (error) {
-      res.status(500).json({ success: false, error: error.message });
-    }
-  });
-
-  /**
-   * 获取所有人物
-   * GET /api/novel-memory/characters
-   */
-  router.get('/characters', async (req, res) => {
-    try {
-      const result = await memoryManager.getAllCharacters();
-      res.json({ success: true, data: result });
-    } catch (error) {
-      res.status(500).json({ success: false, error: error.message });
-    }
-  });
-
-  /**
-   * 清空所有记忆
-   * DELETE /api/novel-memory
-   */
-  router.delete('/', async (req, res) => {
-    try {
-      await memoryManager.clear();
-      res.json({ success: true });
-    } catch (error) {
-      res.status(500).json({ success: false, error: error.message });
-    }
-  });
-
-  /**
-   * 获取记忆统计
-   * GET /api/novel-memory/stats
-   */
-  router.get('/stats', async (req, res) => {
-    try {
-      const stats = await memoryManager.stats();
-      res.json({ success: true, data: stats });
-    } catch (error) {
-      res.status(500).json({ success: false, error: error.message });
+      res.status(500).json({ error: error.message });
     }
   });
 
   return router;
+}
+
+/**
+ * 将记忆结果格式化为prompt文本
+ * @param {Array} memories - 记忆列表
+ * @returns {string} - 格式化后的文本
+ */
+function formatMemoryForPrompt(memories) {
+  if (!memories || memories.length === 0) {
+    return '';
+  }
+
+  const sections = [];
+
+  // 按类型分组
+  const characters = memories.filter(m => m.type === 'character');
+  const plots = memories.filter(m => m.type === 'plot');
+
+  if (characters.length > 0) {
+    sections.push('【相关人物记忆】');
+    characters.forEach((char, idx) => {
+      sections.push(`${idx + 1}. ${char.metadata.name}: ${char.metadata.description}`);
+      if (char.metadata.currentStatus) {
+        sections.push(`   当前状态: ${char.metadata.currentStatus}`);
+      }
+    });
+  }
+
+  if (plots.length > 0) {
+    sections.push('\n【相关情节记忆】');
+    plots.forEach((plot, idx) => {
+      sections.push(`${idx + 1}. 章节${plot.metadata.chapterNumber}: ${plot.metadata.summary}`);
+      if (plot.metadata.foreshadowing) {
+        sections.push(`   伏笔: ${plot.metadata.foreshadowing}`);
+      }
+    });
+  }
+
+  return sections.join('\n');
 }

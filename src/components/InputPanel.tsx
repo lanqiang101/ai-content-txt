@@ -110,7 +110,7 @@ export const InputPanel: React.FC = () => {
         <div className="space-y-2">
           <div className="flex items-center justify-between mb-1">
             <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-              期望字数（字）短篇小说最长100000
+              期望字数(字)短篇小说最长100000
             </label>
           </div>
           <div className="relative">
@@ -127,6 +127,64 @@ export const InputPanel: React.FC = () => {
             />
           </div>
         </div>
+
+        {/* 小说篇幅 - 仅在小说类型时显示 */}
+        {singleParams.type === 'novel' && (
+          <div className="space-y-2">
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                小说篇幅
+              </label>
+            </div>
+            <div className="flex gap-3">
+              <button
+                className={`px-4 py-2 rounded-xl transition-all ${
+                  singleParams.novelLength === 'short' || !singleParams.novelLength
+                    ? "bg-primary text-white shadow-md shadow-primary/20"
+                    : "bg-gray-100 text-gray-700 dark:bg-slate-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-slate-600"
+                }`}
+                onClick={() => setSingleParams({ novelLength: 'short', initialChapters: undefined })}
+              >
+                短篇
+              </button>
+              <button
+                className={`px-4 py-2 rounded-xl transition-all ${
+                  singleParams.novelLength === 'long'
+                    ? "bg-primary text-white shadow-md shadow-primary/20"
+                    : "bg-gray-100 text-gray-700 dark:bg-slate-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-slate-600"
+                }`}
+                onClick={() => setSingleParams({ novelLength: 'long', initialChapters: singleParams.initialChapters || 3 })}
+              >
+                长篇
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* 初始章节数 - 仅在长篇小说时显示 */}
+        {singleParams.type === 'novel' && singleParams.novelLength === 'long' && (
+          <div className="space-y-2">
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                初始章节数
+              </label>
+              <span className="text-xs text-gray-500">首次生成的章节数量</span>
+            </div>
+            <div className="relative">
+              <input
+                type="number"
+                min={1}
+                max={50}
+                value={singleParams.initialChapters || 3}
+                onChange={(e) =>
+                  setSingleParams({ initialChapters: parseInt(e.target.value) })
+                }
+                className="w-full pl-4 pr-12 py-3 border border-gray-200 dark:border-slate-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all bg-white/80 dark:bg-slate-700/80 backdrop-blur text-gray-900 dark:text-gray-100"
+                placeholder="默认3章..."
+              />
+            </div>
+          </div>
+        )}
 
         {/* 内容类型 */}
         <div>

@@ -227,5 +227,81 @@ export default function (db) {
     }
   });
 
+  // 添加章节
+  router.post('/works/:workId/chapters', (req, res) => {
+    try {
+      const { chapterNumber, title, summary, content, wordCount } = req.body;
+      const now = Date.now();
+      const id = `chapter_${now}_${Math.random().toString(36).substr(2, 9)}`;
+      
+      const stmt = db.prepare(`
+        INSERT INTO chapters (id, work_id, chapter_number, title, summary, content, word_count, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+      stmt.run(id, req.params.workId, chapterNumber, title || '', summary || '', content || '', wordCount || 0, now, now);
+      
+      res.json({
+        id,
+        workId: req.params.workId,
+        chapterNumber,
+        title,
+        summary,
+        content,
+        wordCount,
+        createdAt: now,
+        updatedAt: now,
+      });
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // 更新章节
+  router.put('/chapters/:id', (req, res) => {
+    try {
+      const { title, summary, content, wordCount } = req.body;
+      const now = Date.now();
+      
+      const stmt = db.prepare(`
+        UPDATE chapters SET title = ?, summary = ?, content = ?, word_count = ?, updated_at = ?
+        WHERE id = ? AND deleted_at IS NULL
+      `);
+      const result = stmt.run(title || '', summary || '', content || '', wordCount || 0, now, req.params.id);
+      
+      if (result.changes === 0) {
+        return res.status(404).json({ error: '章节不存在' });
+      }
+      
+      const chapter = db.prepare('SELECT * FROM chapters WHERE id = ?').get(req.params.id);
+      res.json({
+        ...chapter,
+        workId: chapter.work_id,
+        chapterNumber: chapter.chapter_number,
+        wordCount: chapter.word_count,
+        createdAt: chapter.created_at,
+        updatedAt: chapter.updated_at,
+      });
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // 删除章节
+  router.delete('/chapters/:id', (req, res) => {
+    try {
+      const now = Date.now();
+      const stmt = db.prepare('UPDATE chapters SET deleted_at = ? WHERE id = ?');
+      const result = stmt.run(now, req.params.id);
+      
+      if (result.changes === 0) {
+        return res.status(404).json({ error: '章节不存在' });
+      }
+      
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   return router;
 }

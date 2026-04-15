@@ -13,9 +13,14 @@ import { PenTool, Moon, Sun, Monitor, Sparkles } from "lucide-react";
 import { Tooltip } from "./components/Tooltip";
 
 function App() {
-  const { generation, darkMode, toggleDarkMode } = useStore();
+  const { generation, darkMode, toggleDarkMode, loadConfigFromDB } = useStore();
   const { runAllCycles } = useGeneration();
   const [activeTab, setActiveTab] = useState<"single" | "batch">("single");
+
+  // 从数据库加载模型配置
+  useEffect(() => {
+    loadConfigFromDB();
+  }, []);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {

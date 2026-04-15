@@ -205,6 +205,57 @@ export const TimerAutomation: React.FC = () => {
         </div>
       </div>
 
+      {/* 小说篇幅 - 仅在小说类型时显示 */}
+      {batchParams.type === 'novel' && (
+        <div className="space-y-2">
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            小说篇幅
+          </label>
+          <div className="flex gap-3">
+            <button
+              className={`px-4 py-2 rounded-xl transition-all ${
+                batchParams.novelLength === 'short' || !batchParams.novelLength
+                  ? "bg-primary text-white shadow-md shadow-primary/20"
+                  : "bg-gray-100 text-gray-700 dark:bg-slate-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-slate-600"
+              }`}
+              onClick={() => setBatchParams({ novelLength: 'short', initialChapters: undefined })}
+            >
+              短篇
+            </button>
+            <button
+              className={`px-4 py-2 rounded-xl transition-all ${
+                batchParams.novelLength === 'long'
+                  ? "bg-primary text-white shadow-md shadow-primary/20"
+                  : "bg-gray-100 text-gray-700 dark:bg-slate-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-slate-600"
+              }`}
+              onClick={() => setBatchParams({ novelLength: 'long', initialChapters: batchParams.initialChapters || 3 })}
+            >
+              长篇
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* 初始章节数 - 仅在长篇小说时显示 */}
+      {batchParams.type === 'novel' && batchParams.novelLength === 'long' && (
+        <div className="space-y-2">
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            初始章节数
+          </label>
+          <input
+            type="number"
+            min={1}
+            max={50}
+            value={batchParams.initialChapters || 3}
+            onChange={(e) =>
+              setBatchParams({ initialChapters: parseInt(e.target.value) })
+            }
+            disabled={timerAutomation.isRunning}
+            className="w-full px-3 py-2 border border-gray-200 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 bg-white/80 dark:bg-slate-700/80 text-gray-900 dark:text-gray-100 disabled:opacity-50"
+          />
+        </div>
+      )}
+
       {/* 内容类型 */}
       <div>
         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">

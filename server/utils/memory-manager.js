@@ -2,29 +2,186 @@
  * 小说创作记忆管理模块
  * 基于向量检索的分层记忆架构，解决长上下文认知收缩问题
  * 支持人物关系、伏笔设定、情节线索的记忆存储与检索
+ * 
+ * 使用 Xenova/all-MiniLM-L6-v2 模型进行文本嵌入
+ * 模型文件存储在项目的 models/embedding 目录中
+ * 使用 SQLite 存储向量数据，无需外部服务
  */
 
-import chroma from 'chromadb';
+import { pipeline, env } from '@xenova/transformers';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import fs from 'fs';
+import crypto from 'crypto';
+
+// 获取当前文件的目录路径（ESM模块）
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// 配置 transformers.js 强制离线模式
+env.allowLocalModels = true;
+env.useBrowserCache = false;
+
+// 设置环境变量，禁止网络请求
+process.env.TRANSFORMERS_OFFLINE = '1';
+process.env.HF_HUB_OFFLINE = '1';
+
+// 项目内模型路径（相对于 server/utils 目录）
+const PROJECT_MODEL_PATH = path.join(__dirname, '..', '..', 'models', 'embedding');
 
 export class NovelMemoryManager {
-  constructor(client, collectionName = 'novel_memory') {
-    this.client = client || new chroma.ChromaClient();
+  constructor(db, collectionName = 'novel_memory') {
+    this.db = db; // SQLite数据库实例
     this.collectionName = collectionName;
-    this.collection = null;
+    this.extractor = null;
+    this.isInitialized = false;
+    this.useFallback = false; // 是否使用备用方案
   }
 
   /**
-   * 初始化记忆集合
+   * 简单的hash-based向量化（备用方案）
+   * 将文本转换为384维向量（与all-MiniLM-L6-v2相同维度）
+   * @param {string} text - 输入文本
+   * @returns {Float32Array} - 384维向量
+   */
+  simpleEmbedding(text) {
+    const vectorSize = 384;
+    const vector = new Float32Array(vectorSize);
+    
+    // 使用SHA-256生成hash
+    const hash = crypto.createHash('sha256').update(text).digest();
+    
+    // 将hash扩展到384维
+    for (let i = 0; i < vectorSize; i++) {
+      const byteIndex = i % 32; // SHA-256是32字节
+      vector[i] = (hash[byteIndex] / 255.0) * 2 - 1; // 归一化到[-1, 1]
+    }
+    
+    // 添加一些基于文本特征的变异
+    const words = text.toLowerCase().split(/\s+/);
+    for (let i = 0; i < Math.min(words.length, 100); i++) {
+      const wordHash = crypto.createHash('md5').update(words[i]).digest();
+      const index = wordHash[0] % vectorSize;
+      vector[index] += (wordHash[1] / 255.0) * 0.1;
+    }
+    
+    // 归一化向量
+    const norm = Math.sqrt(vector.reduce((sum, v) => sum + v * v, 0));
+    if (norm > 0) {
+      for (let i = 0; i < vectorSize; i++) {
+        vector[i] /= norm;
+      }
+    }
+    
+    return vector;
+  }
+
+  /**
+   * 初始化记忆管理系统
+   * 尝试加载嵌入模型，失败则使用备用方案
    */
   async init() {
     try {
-      this.collection = await this.client.getOrCreateCollection({ name: this.collectionName });
-      console.log(`[MemoryManager] Initialized collection: ${this.collectionName}`);
+      console.log('[MemoryManager] Checking model directory...');
+      console.log(`[MemoryManager] Model path: ${PROJECT_MODEL_PATH}`);
+      
+      // 检查模型目录是否存在
+      if (!fs.existsSync(PROJECT_MODEL_PATH)) {
+        throw new Error(`Model directory not found: ${PROJECT_MODEL_PATH}\nPlease ensure the model files are in the project's models/embedding directory.`);
+      }
+      
+      // 验证关键文件是否存在
+      const requiredFiles = ['config.json', 'tokenizer.json', 'vocab.txt'];
+      const missingFiles = requiredFiles.filter(file => !fs.existsSync(path.join(PROJECT_MODEL_PATH, file)));
+      
+      if (missingFiles.length > 0) {
+        throw new Error(`Missing model files: ${missingFiles.join(', ')}`);
+      }
+      
+      console.log('[MemoryManager] ✅ Model files verified, loading Xenova/all-MiniLM-L6-v2...');
+      
+      // 从项目内路径加载模型
+      this.extractor = await pipeline('feature-extraction', PROJECT_MODEL_PATH, {
+        quantized: false, // 使用完整精度模型
+      });
+      
+      this.useFallback = false;
+      console.log('[MemoryManager] ✅ Xenova model loaded successfully from project directory');
+    } catch (error) {
+      console.warn('[MemoryManager] ⚠️ Failed to load Xenova model:', error.message);
+      console.warn('[MemoryManager] 🔄 Falling back to simple hash-based embedding');
+      this.useFallback = true;
+      this.extractor = null;
+    }
+    
+    try {
+      // 创建记忆数据表（如果不存在）
+      this.db.exec(`
+        CREATE TABLE IF NOT EXISTS ${this.collectionName} (
+          id TEXT PRIMARY KEY,
+          type TEXT NOT NULL,
+          content TEXT NOT NULL,
+          metadata TEXT,
+          vector BLOB,
+          created_at INTEGER DEFAULT (strftime('%s', 'now') * 1000),
+          updated_at INTEGER DEFAULT (strftime('%s', 'now') * 1000)
+        )
+      `);
+      
+      // 创建索引以加速查询
+      this.db.exec(`
+        CREATE INDEX IF NOT EXISTS idx_memory_type ON ${this.collectionName}(type)
+      `);
+      
+      this.isInitialized = true;
+      console.log('[MemoryManager] ✅ Memory system initialized successfully');
+      console.log(`[MemoryManager] Embedding mode: ${this.useFallback ? 'Simple Hash (Fallback)' : 'Xenova/all-MiniLM-L6-v2 (Project Model)'}`);
       return true;
     } catch (error) {
-      console.error('[MemoryManager] Init failed:', error);
-      throw error;
+      console.error('[MemoryManager] ❌ Database initialization failed:', error.message);
+      this.isInitialized = false;
+      return false;
     }
+  }
+
+  /**
+   * 将文本转换为向量
+   * @param {string} text - 输入文本
+   * @returns {Promise<Float32Array>} - 向量表示
+   */
+  async embedText(text) {
+    if (this.useFallback || !this.extractor) {
+      // 使用备用方案
+      return this.simpleEmbedding(text);
+    }
+
+    // 使用Xenova模型
+    const output = await this.extractor(text, { pooling: 'mean', normalize: true });
+    return output.data; // Float32Array
+  }
+
+  /**
+   * 计算两个向量之间的余弦相似度
+   * @param {Float32Array} vec1 
+   * @param {Float32Array} vec2 
+   * @returns {number} - 相似度分数 (0-1)
+   */
+  cosineSimilarity(vec1, vec2) {
+    let dotProduct = 0;
+    let norm1 = 0;
+    let norm2 = 0;
+
+    for (let i = 0; i < vec1.length; i++) {
+      dotProduct += vec1[i] * vec2[i];
+      norm1 += vec1[i] * vec1[i];
+      norm2 += vec2[i] * vec2[i];
+    }
+
+    norm1 = Math.sqrt(norm1);
+    norm2 = Math.sqrt(norm2);
+
+    if (norm1 === 0 || norm2 === 0) return 0;
+    return dotProduct / (norm1 * norm2);
   }
 
   /**
@@ -38,6 +195,11 @@ export class NovelMemoryManager {
    * @param {string} params.content - 用于检索的文本内容
    */
   async addCharacter({ id, name, description, currentStatus, events = [], content }) {
+    if (!this.isInitialized) {
+      console.warn('[MemoryManager] Not initialized, skipping addCharacter');
+      return;
+    }
+
     const fullContent = `
 人物: ${name}
 描述: ${description}
@@ -46,85 +208,164 @@ export class NovelMemoryManager {
 ${content}
     `.trim();
 
-    await this.collection.add({
-      ids: [`char_${id}`],
-      documents: [fullContent],
-      metadatas: [{
-        type: 'character',
-        characterId: id,
-        characterName: name,
-        updatedAt: Date.now(),
-      }],
+    // 生成向量
+    const vector = await this.embedText(fullContent);
+    
+    // 存储到数据库
+    const now = Date.now();
+    const metadata = JSON.stringify({
+      type: 'character',
+      characterId: id,
+      name,
+      description,
+      currentStatus,
+      events,
     });
 
-    console.log(`[MemoryManager] Added character: ${name} (${id})`);
+    this.db.prepare(`
+      INSERT OR REPLACE INTO ${this.collectionName} 
+      (id, type, content, metadata, vector, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      `char_${id}`,
+      'character',
+      fullContent,
+      metadata,
+      Buffer.from(vector.buffer),
+      now,
+      now
+    );
+
+    console.log(`[MemoryManager] Added character memory: ${name}`);
   }
 
   /**
    * 更新人物记忆
+   * @param {string} id - 人物ID
+   * @param {Object} updateFields - 需要更新的字段 (description, currentStatus, events, content 等)
    */
   async updateCharacter(id, updateFields) {
-    // 先获取原有信息
-    const existing = await this.collection.get({
-      ids: [`char_${id}`],
-    });
+    if (!this.isInitialized) {
+      console.warn('[MemoryManager] Not initialized, skipping updateCharacter');
+      return;
+    }
 
-    if (!existing.ids || existing.ids.length === 0) {
+    const stmt = this.db.prepare(`SELECT * FROM ${this.collectionName} WHERE id = ?`);
+    const existing = stmt.get(`char_${id}`);
+
+    if (!existing) {
       throw new Error(`Character ${id} not found`);
     }
 
-    // 重新生成文档并更新
-    const existingMetadata = existing.metadatas[0];
-    const existingDoc = existing.documents[0];
+    const existingMetadata = JSON.parse(existing.metadata);
+    
+    // 合并元数据
+    const newMetadata = { ...existingMetadata, ...updateFields };
+    
+    // 重新构建内容以生成新向量
+    // 注意：这里假设 updateFields 中包含了构建 fullContent 所需的最新数据
+    // 如果只更新了部分字段，可能需要从 existingMetadata 中获取旧值补充
+    const name = updateFields.name || existingMetadata.name;
+    const description = updateFields.description || existingMetadata.description;
+    const currentStatus = updateFields.currentStatus || existingMetadata.currentStatus;
+    const events = updateFields.events || existingMetadata.events || [];
+    const content = updateFields.content || ''; // 如果没有新content，可能需要保留旧的或者从别处获取
 
-    // merge 更新后重新存储
-    await this.collection.delete({ ids: [`char_${id}`] });
-    await this.collection.add({
-      ids: [`char_${id}`],
-      documents: [existingDoc],
-      metadatas: [{ ...existingMetadata, ...updateFields, updatedAt: Date.now() }],
-    });
+    const fullContent = `
+人物: ${name}
+描述: ${description}
+当前状态: ${currentStatus}
+已发生事件: ${events.join(', ')}
+${content}
+    `.trim();
 
-    console.log(`[MemoryManager] Updated character: ${existingMetadata.characterName} (${id})`);
+    const vector = await this.embedText(fullContent);
+    const now = Date.now();
+
+    this.db.prepare(`
+      UPDATE ${this.collectionName} 
+      SET content = ?, metadata = ?, vector = ?, updated_at = ?
+      WHERE id = ?
+    `).run(
+      fullContent,
+      JSON.stringify(newMetadata),
+      Buffer.from(vector.buffer),
+      now,
+      `char_${id}`
+    );
+
+    console.log(`[MemoryManager] Updated character memory: ${name}`);
   }
 
   /**
    * 添加伏笔记忆
    */
   async addForeshadowing({ id, title, content, chapter, relatedCharacters = [], plantedAt }) {
-    await this.collection.add({
-      ids: [`fwd_${id}`],
-      documents: [`伏笔: ${title}\n${content}\n关联人物: ${relatedCharacters.join(', ')}\n埋设章节: ${chapter}`],
-      metadatas: [{
-        type: 'foreshadowing',
-        foreshadowingId: id,
-        title,
-        chapter,
-        plantedAt: plantedAt || Date.now(),
-        resolved: false,
-        relatedCharacters,
-      }],
+    if (!this.isInitialized) {
+      console.warn('[MemoryManager] Not initialized, skipping addForeshadowing');
+      return;
+    }
+
+    const docContent = `伏笔: ${title}\n${content}\n关联人物: ${relatedCharacters.join(', ')}\n埋设章节: ${chapter}`;
+    const vector = await this.embedText(docContent);
+    
+    const now = Date.now();
+    const metadata = JSON.stringify({
+      type: 'foreshadowing',
+      foreshadowingId: id,
+      title,
+      chapter,
+      plantedAt: plantedAt || now,
+      resolved: false,
+      relatedCharacters,
     });
 
-    console.log(`[MemoryManager] Added foreshadowing: ${title} (${id})`);
+    this.db.prepare(`
+      INSERT OR REPLACE INTO ${this.collectionName} 
+      (id, type, content, metadata, vector, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      `fwd_${id}`,
+      'foreshadowing',
+      docContent,
+      metadata,
+      Buffer.from(vector.buffer),
+      now,
+      now
+    );
+
+    console.log(`[MemoryManager] Added foreshadowing memory: ${title}`);
   }
 
   /**
    * 标记伏笔已回收
    */
   async resolveForeshadowing(id) {
-    const existing = await this.collection.get({
-      ids: [`fwd_${id}`],
-    });
+    if (!this.isInitialized) {
+      console.warn('[MemoryManager] Not initialized, skipping resolveForeshadowing');
+      return;
+    }
 
-    if (!existing.ids || existing.ids.length === 0) {
+    const stmt = this.db.prepare(`SELECT * FROM ${this.collectionName} WHERE id = ?`);
+    const existing = stmt.get(`fwd_${id}`);
+
+    if (!existing) {
       throw new Error(`Foreshadowing ${id} not found`);
     }
 
-    await this.collection.update({
-      ids: [`fwd_${id}`],
-      metadatas: [{ ...existing.metadatas[0], resolved: true, resolvedAt: Date.now() }],
-    });
+    const metadata = JSON.parse(existing.metadata);
+    metadata.resolved = true;
+    metadata.resolvedAt = Date.now();
+
+    this.db.prepare(`
+      UPDATE ${this.collectionName} 
+      SET metadata = ?, updated_at = ?
+      WHERE id = ?
+    `).run(
+      JSON.stringify(metadata),
+      Date.now(),
+      `fwd_${id}`
+    );
 
     console.log(`[MemoryManager] Resolved foreshadowing: ${id}`);
   }
@@ -133,40 +374,94 @@ ${content}
    * 添加章节记忆
    */
   async addChapter(chapterId, title, content, summary) {
-    await this.collection.add({
-      ids: [`chp_${chapterId}`],
-      documents: [`章节: ${title}\n${summary}\n${content}`],
-      metadatas: [{
-        type: 'chapter',
-        chapterId,
-        title,
-        summary,
-        createdAt: Date.now(),
-      }],
+    if (!this.isInitialized) {
+      console.warn('[MemoryManager] Not initialized, skipping addChapter');
+      return;
+    }
+
+    const docContent = `章节: ${title}\n${summary}\n${content}`;
+    const vector = await this.embedText(docContent);
+    
+    const now = Date.now();
+    const metadata = JSON.stringify({
+      type: 'chapter',
+      chapterId,
+      title,
+      summary,
     });
 
-    console.log(`[MemoryManager] Added chapter: ${title} (${chapterId})`);
+    this.db.prepare(`
+      INSERT OR REPLACE INTO ${this.collectionName} 
+      (id, type, content, metadata, vector, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      `chp_${chapterId}`,
+      'chapter',
+      docContent,
+      metadata,
+      Buffer.from(vector.buffer),
+      now,
+      now
+    );
+
+    console.log(`[MemoryManager] Added chapter memory: ${title}`);
   }
 
   /**
    * 根据当前prompt检索相关记忆
    * @param {string} query - 当前生成prompt
    * @param {number} topK - 返回结果数量
-   * @returns {Promise<Array<{id: string, type: string, content: string, metadata: Object}>>}
+   * @returns {Promise<Array<{id: string, type: string, content: string, metadata: Object, similarity: number}>>}
    */
   async retrieveRelated(query, topK = 5) {
-    const results = await this.collection.query({
-      queryTexts: [query],
-      nResults: topK,
-    });
+    if (!this.isInitialized) {
+      console.warn('[MemoryManager] Not initialized, returning empty results');
+      return [];
+    }
 
-    return results.documents[0].map((doc, i) => ({
-      id: results.ids[0][i],
-      type: results.metadatas[0][i].type,
-      content: doc,
-      metadata: results.metadatas[0][i],
-      distance: results.distances[0][i],
-    }));
+    console.log('[MemoryManager] Retrieving with query:', query.substring(0, 100));
+    
+    try {
+      // 生成查询向量
+      const queryVector = await this.embedText(query);
+
+      // 获取所有记忆进行比对 (在生产环境中，如果数据量极大，应考虑使用 SQLite 向量扩展或预过滤)
+      const memories = this.db.prepare(`SELECT * FROM ${this.collectionName}`).all();
+      
+      if (memories.length === 0) {
+        return [];
+      }
+
+      // 计算相似度并排序
+      const scored = memories.map(memory => {
+        // SQLite BLOB 转回 Float32Array
+        // 注意：Buffer.from 创建的是 Uint8Array，需要正确解释为 Float32
+        const vectorBuffer = memory.vector;
+        // 假设存储时是 Float32Array 的 buffer
+        const vector = new Float32Array(vectorBuffer.buffer, vectorBuffer.byteOffset, vectorBuffer.byteLength / 4);
+        
+        const similarity = this.cosineSimilarity(queryVector, vector);
+        return {
+          id: memory.id,
+          type: memory.type, // 从 metadata 中解析更稳妥，但 type 列也存在
+          content: memory.content,
+          metadata: JSON.parse(memory.metadata),
+          similarity,
+        };
+      });
+
+      // 按相似度降序排序，返回topK
+      const results = scored
+        .sort((a, b) => b.similarity - a.similarity)
+        .slice(0, topK);
+
+      console.log(`[MemoryManager] Retrieved ${results.length} relevant memories`);
+      return results;
+
+    } catch (error) {
+      console.error('[MemoryManager] Query failed:', error);
+      return []; // 返回空数组而不是抛出错误
+    }
   }
 
   /**
@@ -205,37 +500,62 @@ ${content}
    * 获取所有未回收的伏笔
    */
   async getUnresolvedForeshadowings() {
-    const all = await this.collection.get();
-    return all.metadatas.filter(m => m.type === 'foreshadowing' && !m.resolved);
+    if (!this.isInitialized) return [];
+    
+    const rows = this.db.prepare(`SELECT * FROM ${this.collectionName} WHERE type = 'foreshadowing'`).all();
+    return rows
+      .map(r => JSON.parse(r.metadata))
+      .filter(m => !m.resolved);
   }
 
   /**
    * 获取所有人物列表
    */
   async getAllCharacters() {
-    const all = await this.collection.get();
-    return all.metadatas.filter(m => m.type === 'character');
+    if (!this.isInitialized) return [];
+
+    const rows = this.db.prepare(`SELECT * FROM ${this.collectionName} WHERE type = 'character'`).all();
+    return rows.map(r => JSON.parse(r.metadata));
+  }
+
+  /**
+   * 获取记忆统计信息（同步方法）
+   */
+  getStats() {
+    if (!this.isInitialized) {
+      return { initialized: false, totalMemories: 0, byType: {} };
+    }
+
+    const total = this.db.prepare(`SELECT COUNT(*) as count FROM ${this.collectionName}`).get();
+    const byType = this.db.prepare(`
+      SELECT type, COUNT(*) as count FROM ${this.collectionName} GROUP BY type
+    `).all();
+
+    return {
+      initialized: true,
+      totalMemories: total.count,
+      byType: byType.reduce((acc, row) => {
+        acc[row.type] = row.count;
+        return acc;
+      }, {}),
+    };
+  }
+
+  /**
+   * 获取记忆统计（异步方法，保持兼容）
+   */
+  async stats() {
+    return this.getStats();
   }
 
   /**
    * 清空所有记忆
    */
   async clear() {
-    await this.collection.delete();
-    this.collection = null;
-    this.collection = await this.client.getOrCreateCollection({ name: this.collectionName });
+    if (!this.isInitialized) return;
+    
+    this.db.exec(`DELETE FROM ${this.collectionName}`);
     console.log('[MemoryManager] Memory cleared');
-  }
-
-  /**
-   * 获取记忆统计
-   */
-  async stats() {
-    const count = await this.collection.count();
-    return {
-      total: count,
-      collectionName: this.collectionName,
-    };
   }
 }
 

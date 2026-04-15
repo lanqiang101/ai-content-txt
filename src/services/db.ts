@@ -60,6 +60,41 @@ export async function getWorkChapters(id: string): Promise<any[]> {
   return response.json();
 }
 
+export async function addChapter(workId: string, chapter: any): Promise<any> {
+  const response = await fetch(`${API_BASE}/api/works/${workId}/chapters`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(chapter),
+  });
+  if (!response.ok) {
+    throw new Error(`添加章节失败: ${response.status}`);
+  }
+  return response.json();
+}
+
+export async function updateChapter(id: string, updates: any): Promise<any> {
+  const response = await fetch(`${API_BASE}/api/chapters/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(updates),
+  });
+  if (!response.ok) {
+    throw new Error(`更新章节失败: ${response.status}`);
+  }
+  return response.json();
+}
+
+export async function deleteChapter(id: string): Promise<{ success: boolean }> {
+  const response = await fetch(`${API_BASE}/api/chapters/${id}`, {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+  });
+  if (!response.ok) {
+    throw new Error(`删除章节失败: ${response.status}`);
+  }
+  return response.json();
+}
+
 export async function addWork(work: any): Promise<any> {
   const response = await fetch(`${API_BASE}/api/works/add`, {
     method: 'POST',
@@ -358,6 +393,9 @@ export const dbService = {
   getWorkFull,
   getWorksByStatus,
   getWorkChapters,
+  addChapter,
+  updateChapter,
+  deleteChapter,
   addWork,
   updateWork,
   deleteWork,

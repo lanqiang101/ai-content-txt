@@ -23,13 +23,19 @@ const initializeStore = async (set: SetState<AppState>, get: GetState<AppState>)
 };
 
 const defaultModelConfig: (defaultModel: string) => ModelConfig = (defaultModel) => ({
-  id: Date.now(),
+  id: String(Date.now()),
   name: defaultModel,
   mode: 'api',
-  localUrl: 'http://localhost:11434',
-  apiUrl: '/api/coding/v3',
+  provider: 'custom',
+  model: defaultModel,
   modelName: defaultModel,
+  apiUrl: '/api/coding/v3',
+  localUrl: 'http://localhost:11434',
   apiKey: '',
+  temperature: 0.7,
+  topP: 0.9,
+  maxTokens: 4096,
+  timeout: 30000,
   enabled: true,
 });
 
@@ -111,10 +117,13 @@ const getDefaultConfig = (): PipelineConfig => {
       activeModelId: defaultModel.id,
     },
     stage3: {
-      models: [defaultModel],
+      models: [defaultModelConfig('ep-20250210-xxxxx')],
       activeModelId: defaultModel.id,
     },
-    random: defaultModel,
+    random: {
+      models: [defaultModelConfig('ep-20250210-xxxxx')],
+      activeModelId: defaultModel.id,
+    },
     storyboard: {
       models: [defaultModelConfig('ep-20250210-xxxxx')],
       activeModelId: defaultModel.id,
@@ -293,6 +302,7 @@ interface AppState {
   timerAutomation: TimerAutomation;
 
   setConfig: (newConfig: Partial<PipelineConfig>) => void;
+  loadConfigFromDB: () => Promise<void>;
   setParams: (newParams: Partial<GenerationParams>) => void; // 保留作为向后兼容
   setSingleParams: (newParams: Partial<GenerationParams>) => void; // 设置单篇创作参数
   setBatchParams: (newParams: Partial<GenerationParams>) => void; // 设置批量创作参数
@@ -358,6 +368,54 @@ export const useStore = create<AppState>()(
         setConfig: (newConfig: Partial<PipelineConfig>) => set((state) => ({
           config: { ...state.config, ...newConfig },
         })),
+        loadConfigFromDB: async () => {
+          try {
+            const models = await dbService.getModels();
+            if (!models || models.length === 0) {
+              console.log('未找到可用模型配置');
+              return;
+            }
+            
+            const enabledModels = models.filter(model => model.enabled);
+            if (enabledModels.length === 0) {
+              console.log('未找到启用的模型配置');
+              return;
+            }
+            
+            const defaultModel = enabledModels[0];
+            const modelList = enabledModels.map(model => ({
+              id: String(model.id),
+              name: model.name,
+              mode: model.mode as 'local' | 'remote' | 'openai' | 'api',
+              modelName: model.modelName,
+              apiKey: model.apiKey,
+              apiUrl: model.baseUrl,
+              baseUrl: model.baseUrl,
+              maxTokens: model.maxTokens,
+              temperature: model.temperature,
+              topP: 0.9,
+              timeout: 30000,
+              provider: 'custom',
+              model: model.modelName,
+              enabled: model.enabled,
+            }));
+            
+            set((state) => ({
+              config: {
+                ...state.config,
+                stage1: { models: modelList, activeModelId: String(defaultModel.id) },
+                stage2: { models: modelList, activeModelId: String(defaultModel.id) },
+                stage3: { models: modelList, activeModelId: String(defaultModel.id) },
+                random: { models: modelList, activeModelId: String(defaultModel.id) },
+                storyboard: { models: modelList, activeModelId: String(defaultModel.id) },
+              },
+            }));
+            
+            console.log('✅ 已从数据库加载模型配置:', enabledModels.length, '个模型');
+          } catch (e) {
+            console.error('❌ 从数据库加载配置失败:', e);
+          }
+        },
         setParams: (newParams: Partial<GenerationParams>) => set((state) => ({
           params: { ...state.params, ...newParams },
         })),
@@ -378,13 +436,13 @@ export const useStore = create<AppState>()(
           history: state.history.filter(h => h.id !== id),
         })),
         loadFromHistory: (item: ContentHistory) => set((state) => ({
-          params: { ...state.params, ...item.result },
+          params: { ...state.params, topic: item.topic || '' },
         })),
         toggleConfig: () => set((state) => ({
           configOpen: !state.configOpen,
         })),
         toggleHistory: () => set((state) => ({
-          historyOpen: !historyOpen,
+          historyOpen: !state.historyOpen,
         })),
         toggleWorks: () => set((state) => ({
           worksOpen: !state.worksOpen,
@@ -470,6 +528,26 @@ export const useStore = create<AppState>()(
     }
   )
 );
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

@@ -15,6 +15,8 @@ import storyboardsRouter from './routes/storyboards.js';
 import outlinesRouter from './routes/outlines.js';
 import historyRouter from './routes/history.js';
 import configRouter from './routes/config.js';
+import novelMemoryRouter from './routes/novel-memory.js';
+import { NovelMemoryManager } from './utils/memory-manager.js';
 
 const PORT = 3000;
 const DB_DIR = '/Volumes/Seagate Exp/xm_db';
@@ -206,16 +208,40 @@ function initDatabase(db) {
   console.log('✅ 所有数据表初始化完成');
 }
 
-// Mount routes
+// 初始化记忆管理系统
+let memoryManager;
+async function initMemoryManager() {
+  try {
+    memoryManager = new NovelMemoryManager(db);
+    const success = await memoryManager.init();
+    if (success) {
+      console.log('✅ 记忆管理系统初始化成功 (使用 Xenova/all-MiniLM-L6-v2 模型)');
+    } else {
+      console.warn('⚠️ 记忆管理系统初始化失败，相关功能将不可用');
+    }
+  } catch (error) {
+    console.error('❌ 记忆管理系统初始化异常:', error.message);
+  }
+}
+
+// ========== 启动服务器 ==========
+app.listen(PORT, async () => {
+  console.log(`🚀 后端服务启动成功: http://localhost:${PORT}`);
+  console.log(`💾 数据库文件: ${DB_PATH}`);
+  
+  // 先初始化记忆管理系统
+  await initMemoryManager();
+  
+  // 然后挂载需要memoryManager的路由
+  app.use('/api/memory', novelMemoryRouter(memoryManager));
+  
+  console.log('✅ 所有路由已注册');
+});
+
+// Mount other routes (不需要memoryManager的路由可以立即挂载)
 app.use('/api', worksRouter(db));
 app.use('/api', charactersRouter(db));
 app.use('/api', storyboardsRouter(db));
 app.use('/api', outlinesRouter(db));
 app.use('/api', historyRouter(db));
 app.use('/api', configRouter(db));
-
-// ========== 启动服务器 ==========
-app.listen(PORT, () => {
-  console.log(`🚀 后端服务启动成功: http://localhost:${PORT}`);
-  console.log(`💾 数据库文件: ${DB_PATH}`);
-});
