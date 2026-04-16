@@ -272,20 +272,20 @@ export const useCycleGeneration = () => {
         
         // 🔥 检查实际生成的字数
         const actualWords = cycleResult.length;
-        const minAcceptableWords = Math.floor(dynamicWordsPerCycle * 0.7); // 最低接受70%
+        const minAcceptableWords = Math.floor(dynamicWordsPerCycle * 0.85); // 🔥 降低阈值到85%
         
         console.log(`  - 实际生成: ${actualWords} 字 (${(actualWords/dynamicWordsPerCycle*100).toFixed(1)}%)`);
         
-        // 🔥 如果字数严重不足，触发自动续写
+        // 🔥 如果字数不足，触发自动续写
         if (actualWords < minAcceptableWords && i < CYCLE_CONFIG.stage2.cycles - 1) {
-          console.warn(`[Generation] ⚠️ 字数严重不足 (${actualWords}/${minAcceptableWords})，触发自动续写...`);
+          console.warn(`[Generation] ⚠️ 字数不足 (${actualWords}/${minAcceptableWords})，触发自动续写...`);
           
-          const continuePrompt = `【紧急任务】上文内容字数严重不足，请继续往下写！
+          const continuePrompt = `【紧急任务】上文内容字数不足，请继续往下写！
 
 上文内容：
 ${cycleResult}
 
-还需要至少再写 ${dynamicWordsPerCycle - actualWords} 字才能达到要求。
+还需要至少再写 ${Math.ceil(dynamicWordsPerCycle - actualWords)} 字才能达到要求。
 请直接继续写下去，不要重复上文内容，从新的情节开始。`;
 
           const continueResult = await callModelSafe(continuePrompt, stage2Model, abortSignal);
@@ -338,6 +338,49 @@ ${cycleResult}
         });
       }
 
+      // 🔥 Stage 2 完成：字数校验和补救
+      const finalWordCount = currentContent2.length;
+      const wordCountRatio = finalWordCount / targetWords;
+      
+      console.log(`[Generation] Stage 2 完成:`);
+      console.log(`  - 目标字数: ${targetWords}`);
+      console.log(`  - 实际字数: ${finalWordCount}`);
+      console.log(`  - 完成率: ${(wordCountRatio * 100).toFixed(1)}%`);
+      
+      // 🔥 如果字数严重不足（低于80%），触发最终补救
+      if (wordCountRatio < 0.8 && !abortSignal.aborted) {
+        console.warn(`[Generation] ⚠️ 字数严重不足 (${finalWordCount}/${targetWords})，触发最终补救...`);
+        
+        const remainingWords = Math.ceil(targetWords - finalWordCount);
+        const rescuePrompt = `【最终补救任务】当前小说字数严重不足，需要补充内容！
+
+已生成内容（前500字）：
+${currentContent2.substring(0, 500)}
+...
+（中间省略）
+...
+已生成内容（后500字）：
+${currentContent2.slice(-500)}
+
+还需要至少再写 ${remainingWords} 字才能达到目标。
+请从故事中间部分继续展开，添加新的情节、对话或细节描写，不要重复已有内容。
+可以直接扩展现有场景，或者引入新的事件发展。`;
+
+        const rescueResult = await callModelSafe(rescuePrompt, stage2Model, abortSignal);
+        
+        if (rescueResult !== null) {
+          // 将补救内容插入到中间位置（避免只加在末尾）
+          const insertPosition = Math.floor(currentContent2.length / 2);
+          const beforeInsert = currentContent2.substring(0, insertPosition);
+          const afterInsert = currentContent2.substring(insertPosition);
+          
+          currentContent2 = beforeInsert + '\n\n' + rescueResult + '\n\n' + afterInsert;
+          stage2Result = currentContent2;
+          
+          console.log(`[Generation] ✅ 补救成功，最终字数: ${currentContent2.length}`);
+        }
+      }
+      
       // 🔥 Stage 2 完成：添加完整正文记忆
       if (currentWorkId && stage2Result) {
         console.log('[Memory] Adding Stage 2 complete content memory...');

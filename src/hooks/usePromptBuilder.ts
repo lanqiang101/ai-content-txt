@@ -289,7 +289,12 @@ ${stage1Result}
       prompt += `\n- 增加不可预测的转折，拒绝套路化写作\n`;
     }
 
-    prompt += `\n⚠️ **再次强调**: 请确保生成内容达到 ${wordsPerCycle} 字以上，否则视为任务失败！\n\nPlease directly start writing the story, do not summarize, do not explain, just write the story content.`;
+    prompt += `\n⚠️ **再次强调**: 
+1. 请 ensure生成内容达到 ${wordsPerCycle} 字 above，otherwise视为任务 failed！
+2. **必须使用简体中文 output**，禁止 any English words or sentences！
+3. If feel words not enough，please use expansion techniques (add dialogue, psychological description, environmental details, etc.) to充实 content.
+
+Please directly start write story正文， do not summarize, do not explain, just write story content.`;
 
     return prompt;
   };
@@ -303,7 +308,7 @@ ${stage1Result}
 
     let prompt = `请帮我打磨优化以下这篇小说，去除AI痕迹，让它更像真人写的。
 
-## 相关记忆 reference（确保不改变核心情节和人物设定）
+## 相关 memory reference（ensure not change core plot and character setting）
 ${relatedMemory || '（无相关记忆）'}
 
 原文：
