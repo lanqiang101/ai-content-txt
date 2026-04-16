@@ -376,6 +376,14 @@ export async function getAppConfig(key: string): Promise<any> {
   return response.json();
 }
 
+export async function getAllAppConfig(): Promise<any> {
+  const response = await fetch(`${API_BASE}/api/config/system/getConfig`);
+  if (!response.ok) {
+    throw new Error(`获取系统配置失败: ${response.status}`);
+  }
+  return response.json();
+}
+
 export async function saveAppConfig(key: string, value: any): Promise<any> {
   const response = await fetch(`${API_BASE}/api/config/app/${key}`, {
     method: 'POST',
@@ -436,5 +444,54 @@ export const dbService = {
   saveSystemConfig,
   // 应用配置
   getAppConfig,
+  getAllAppConfig,
   saveAppConfig,
+  // 热门主题推荐
+  getPopularTopics,
+  addPopularTopic,
+  updatePopularTopic,
+  deletePopularTopic,
 };
+
+// ========== 热门主题推荐 API ==========
+export async function getPopularTopics(): Promise<any> {
+  const response = await fetch(`${API_BASE}/api/popular-topics`);
+  if (!response.ok) {
+    throw new Error(`获取热门主题失败: ${response.status}`);
+  }
+  return response.json();
+}
+
+export async function addPopularTopic(data: { category: string; topic: string; description?: string; sortOrder?: number }): Promise<any> {
+  const response = await fetch(`${API_BASE}/api/popular-topics`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!response.ok) {
+    throw new Error(`添加热门主题失败: ${response.status}`);
+  }
+  return response.json();
+}
+
+export async function updatePopularTopic(id: number, data: any): Promise<any> {
+  const response = await fetch(`${API_BASE}/api/popular-topics/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!response.ok) {
+    throw new Error(`更新热门主题失败: ${response.status}`);
+  }
+  return response.json();
+}
+
+export async function deletePopularTopic(id: number): Promise<any> {
+  const response = await fetch(`${API_BASE}/api/popular-topics/${id}`, {
+    method: 'DELETE',
+  });
+  if (!response.ok) {
+    throw new Error(`删除热门主题失败: ${response.status}`);
+  }
+  return response.json();
+}

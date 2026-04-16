@@ -1,8 +1,9 @@
 import React, { useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
-import { Dice1, Loader2, X, Sparkles, Check } from "lucide-react";
-import { useRandomGenerate } from "../hooks/useRandomGenerate";
+import { Dice1, Loader2, X, Sparkles, Check, AlertCircle } from "lucide-react";
+import { useRandomConfig } from "../hooks/useRandomConfig";
 import { Tooltip } from "./Tooltip";
+import { useNavigate } from "react-router-dom";
 
 interface KeywordGeneratorButtonProps {
   topic: string;
@@ -19,12 +20,14 @@ export const KeywordGeneratorButton: React.FC<KeywordGeneratorButtonProps> = ({
   onSelect,
   className = "",
 }) => {
-  const { generateCandidates, loading } = useRandomGenerate();
+  const navigate = useNavigate();
+  const { generateCandidates, loading, hasConfig } = useRandomConfig();
   const [open, setOpen] = useState(false);
   const [keywords, setKeywords] = useState<string[]>([]);
   const [selectedKeywords, setSelectedKeywords] = useState<Set<string>>(
     new Set(),
   );
+  const [error, setError] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [position, setPosition] = useState({ top: 0, left: 0, width: 320 });
 
@@ -49,7 +52,18 @@ export const KeywordGeneratorButton: React.FC<KeywordGeneratorButtonProps> = ({
   };
 
   const handleGenerate = async (optimize: boolean) => {
+    if (!hasConfig) {
+      setError("未配置随机生成模型");
+      setTimeout(() => {
+        if (window.confirm("未配置随机生成模型\n\n是否前往系统配置？")) {
+          navigate("/config");
+        }
+      }, 100);
+      return;
+    }
+
     try {
+      setError(null);
       let fieldDescription = "关键词";
       let rules = `根据主题【${topic}】和标题【${title}】生成相关关键词`;
 
@@ -122,8 +136,14 @@ export const KeywordGeneratorButton: React.FC<KeywordGeneratorButtonProps> = ({
       className={`relative inline-flex items-center gap-1 ${className}`}
       ref={containerRef}
     >
-      {/* 重新生成按钮 */}
-      <Tooltip content="重新生成关键词">
+      {/* 错误提示 */}
+      {error && (
+        <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 px-3 py-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-xs text-red-700 dark:text-red-300 whitespace-nowrap z-[101]">
+          {error}
+        </div>
+      )}
+
+      <Tooltip content="随机生成关键词">
         <button
           onClick={() => handleGenerate(false)}
           disabled={isLoading}
@@ -210,14 +230,11 @@ export const KeywordGeneratorButton: React.FC<KeywordGeneratorButtonProps> = ({
                   "
                 >
                   确认选择
-                  {selectedKeywords.size > 0
-                    ? ` (${selectedKeywords.size})`
-                    : ""}
                 </button>
               </div>
             </div>
           </>,
-          document.body,
+          document.body
         )}
     </div>
   );

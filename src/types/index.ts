@@ -37,6 +37,9 @@ export interface PipelineConfig {
   stage3: StageModelConfig;
   random?: StageModelConfig;
   storyboard?: StageModelConfig;
+  popularTopics?: StageModelConfig; // 热门主题推荐模型
+  chapterContinuation?: StageModelConfig; // 章节续写模型
+  chapterOptimization?: StageModelConfig; // 章节优化模型
   enabledStages?: number[];
   cyclesPerStage?: Record<number, number>;
   autoContinue?: boolean;
@@ -379,6 +382,7 @@ export interface GenerationState {
   stage1Result: string;
   stage2Result: string;
   stage3Result: string;
+  currentWorkId?: string; // 🔥 当前正在生成的作品ID，用于后台任务追踪
 }
 
 // 批量自动创作配置

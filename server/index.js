@@ -16,6 +16,7 @@ import outlinesRouter from './routes/outlines.js';
 import historyRouter from './routes/history.js';
 import configRouter from './routes/config.js';
 import novelMemoryRouter from './routes/novel-memory.js';
+import popularTopicsRouter from './routes/popular-topics.js';
 import { NovelMemoryManager } from './utils/memory-manager.js';
 
 const PORT = 3000;
@@ -34,7 +35,7 @@ app.use(express.json());
 // CORS
 app.use((req, res, next) => {
   res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Headers', 'Content-Type');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
   if (req.method === 'OPTIONS') {
     return res.sendStatus(200);
@@ -205,6 +206,65 @@ function initDatabase(db) {
     )
   `);
 
+  // 热门主题推荐表
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS popular_topics (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      category TEXT NOT NULL,
+      topic TEXT NOT NULL,
+      description TEXT,
+      sort_order INTEGER DEFAULT 0,
+      enabled INTEGER DEFAULT 1,
+      created_at INTEGER DEFAULT (strftime('%s', 'now') * 1000),
+      updated_at INTEGER DEFAULT (strftime('%s', 'now') * 1000)
+    )
+  `);
+
+  // 创建索引以加速查询
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_popular_topics_category ON popular_topics(category)
+  `);
+
+  // 插入默认热门主题数据
+  const existingTopics = db.prepare('SELECT COUNT(*) as count FROM popular_topics').get();
+  if (existingTopics.count === 0) {
+    const defaultTopics = [
+      // 都市类
+      { category: '都市', topic: '职场逆袭', description: '从底层员工到行业精英的奋斗历程', sort_order: 1 },
+      { category: '都市', topic: '创业故事', description: '白手起家打造商业帝国的传奇', sort_order: 2 },
+      { category: '都市', topic: '豪门恩怨', description: '家族内部的权力斗争与情感纠葛', sort_order: 3 },
+      
+      // 玄幻类
+      { category: '玄幻', topic: '废柴崛起', description: '天赋被废后重新踏上修炼之路', sort_order: 10 },
+      { category: '玄幻', topic: '系统流', description: '获得神秘系统辅助快速成长', sort_order: 11 },
+      { category: '玄幻', topic: '穿越异界', description: '现代人穿越到异世界开启新人生', sort_order: 12 },
+      
+      // 悬疑类
+      { category: '悬疑', topic: '密室逃脱', description: '被困神秘空间寻找逃生线索', sort_order: 20 },
+      { category: '悬疑', topic: '连环谜案', description: '侦探破解一系列离奇案件', sort_order: 21 },
+      { category: '悬疑', topic: '心理惊悚', description: '深入探索人性黑暗面的恐怖故事', sort_order: 22 },
+      
+      // 言情类
+      { category: '言情', topic: '青梅竹马', description: '从小一起长大的纯真爱情故事', sort_order: 30 },
+      { category: '言情', topic: '霸道总裁', description: '强势男主与独立女主的爱情博弈', sort_order: 31 },
+      { category: '言情', topic: '先婚后爱', description: '契约婚姻中逐渐产生的真感情', sort_order: 32 },
+    ];
+    
+    const insertStmt = db.prepare(`
+      INSERT INTO popular_topics (category, topic, description, sort_order, enabled, created_at, updated_at)
+      VALUES (@category, @topic, @description, @sort_order, 1, strftime('%s', 'now') * 1000, strftime('%s', 'now') * 1000)
+    `);
+    
+    const insertMany = db.transaction((topics) => {
+      for (const topic of topics) {
+        insertStmt.run(topic);
+      }
+    });
+    
+    insertMany(defaultTopics);
+    console.log('✅ 已插入默认热门主题数据');
+  }
+
   console.log('✅ 所有数据表初始化完成');
 }
 
@@ -245,3 +305,25 @@ app.use('/api', storyboardsRouter(db));
 app.use('/api', outlinesRouter(db));
 app.use('/api', historyRouter(db));
 app.use('/api', configRouter(db));
+app.use('/api', popularTopicsRouter(db));
+
+// 🔥 全局错误处理中间件 - 优雅处理取消的请求（必须在所有路由之后）
+app.use((err, req, res, next) => {
+  // 检查是否是请求被取消的错误
+  if (err.name === 'AbortError' || err.code === 'ECONNRESET' || err.message?.includes('aborted')) {
+    console.log('[Server] ⚠️ Request was cancelled by client');
+    return res.status(499).json({ 
+      success: false, 
+      error: 'Request cancelled',
+      message: '客户端已取消请求' 
+    });
+  }
+  
+  // 其他错误
+  console.error('[Server Error]', err);
+  res.status(500).json({ 
+    success: false, 
+    error: 'Internal Server Error',
+    message: process.env.NODE_ENV === 'development' ? err.message : '服务器内部错误'
+  });
+});

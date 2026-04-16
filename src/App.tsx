@@ -9,13 +9,71 @@ import { TimerAutomation } from "./components/TimerAutomation";
 import { BatchStartButton } from "./components/BatchStartButton";
 import { useStore } from "./store/useStore";
 import { useGeneration } from "./hooks/useGeneration";
-import { PenTool, Moon, Sun, Monitor, Sparkles } from "lucide-react";
+import { useTaskManager } from "./hooks/useTaskManager";
+import { PenTool, Moon, Sun, Monitor, Sparkles, Database, AlertCircle, RotateCcw } from "lucide-react";
 import { Tooltip } from "./components/Tooltip";
 
 function App() {
-  const { generation, darkMode, toggleDarkMode, loadConfigFromDB } = useStore();
+  const { generation, darkMode, toggleDarkMode, loadConfigFromDB, currentWorkId } = useStore();
   const { runAllCycles } = useGeneration();
+  const { requestNotificationPermission, restoreTaskProgress } = useTaskManager();
   const [activeTab, setActiveTab] = useState<"single" | "batch">("single");
+  const [showBackgroundTaskAlert, setShowBackgroundTaskAlert] = useState(false);
+  const [showRestorePrompt, setShowRestorePrompt] = useState(false);
+  const [restoredTask, setRestoredTask] = useState<any>(null);
+
+  // 🔥 检测是否有后台生成任务
+  useEffect(() => {
+    if (generation.isGenerating && generation.currentWorkId) {
+      console.log('[App] Detected background generation task:', generation.currentWorkId);
+      setShowBackgroundTaskAlert(true);
+      
+      // 5秒后自动隐藏提示
+      const timer = setTimeout(() => {
+        setShowBackgroundTaskAlert(false);
+      }, 5000);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [generation.isGenerating, generation.currentWorkId]);
+
+  // 🔥 应用启动时检查未完成的任务（断点续传）
+  useEffect(() => {
+    const checkUnfinishedTask = async () => {
+      // 请求通知权限
+      await requestNotificationPermission();
+      
+      // 检查是否有未保存的进度
+      const progress = restoreTaskProgress();
+      if (progress && !generation.isGenerating) {
+        console.log('[App] Found unfinished task, showing restore prompt');
+        setRestoredTask(progress);
+        setShowRestorePrompt(true);
+      }
+    };
+    
+    checkUnfinishedTask();
+  }, [requestNotificationPermission, restoreTaskProgress, generation.isGenerating]);
+
+  // 🔥 恢复任务
+  const handleRestoreTask = () => {
+    if (restoredTask) {
+      console.log('[App] Restoring task:', restoredTask.workId);
+      // 设置当前作品ID，用户可以从作品管理查看进度
+      useStore.getState().setCurrentWork(restoredTask.workId);
+      setShowRestorePrompt(false);
+      setRestoredTask(null);
+    }
+  };
+
+  // 🔥 忽略恢复
+  const handleIgnoreRestore = () => {
+    console.log('[App] Ignoring restore prompt');
+    setShowRestorePrompt(false);
+    setRestoredTask(null);
+    // 清除进度记录
+    localStorage.removeItem('ai-content-task-progress');
+  };
 
   // 从数据库加载模型配置
   useEffect(() => {
@@ -72,6 +130,68 @@ function App() {
 
   return (
     <div className="h-screen bg-gradient-to-br from-gray-50 via-white to-slate-100 dark:from-slate-900 dark:via-slate-900 dark:to-slate-950 transition-colors duration-500 overflow-hidden">
+      {/* 🔥 断点续传提示 */}
+      {showRestorePrompt && restoredTask && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl p-6 max-w-md w-full mx-4 animate-in zoom-in-95 fade-in duration-200">
+            <div className="flex items-start gap-4">
+              <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-xl">
+                <RotateCcw size={24} className="text-blue-600 dark:text-blue-400" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                  检测到未完成的创作任务
+                </h3>
+                <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">
+                  发现一个之前中断的生成任务（作品ID: {restoredTask.workId?.slice(-8)}）
+                  <br />
+                  中断时间: {new Date(restoredTask.timestamp).toLocaleString('zh-CN')}
+                  <br />
+                  进度: Stage {restoredTask.currentStage}, Cycle {restoredTask.currentCycle}
+                </p>
+                <div className="flex gap-3">
+                  <button
+                    onClick={handleRestoreTask}
+                    className="flex-1 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-medium transition-colors"
+                  >
+                    查看进度
+                  </button>
+                  <button
+                    onClick={handleIgnoreRestore}
+                    className="flex-1 px-4 py-2 bg-gray-200 dark:bg-slate-700 hover:bg-gray-300 dark:hover:bg-slate-600 text-gray-700 dark:text-gray-200 rounded-lg font-medium transition-colors"
+                  >
+                    忽略
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 🔥 后台任务提示 */}
+      {showBackgroundTaskAlert && generation.currentWorkId && (
+        <div className="fixed top-20 right-4 z-50 bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-800 rounded-lg shadow-lg p-4 animate-in slide-in-from-top-2 fade-in duration-300">
+          <div className="flex items-start gap-3">
+            <AlertCircle size={20} className="text-green-600 dark:text-green-400 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <h4 className="text-sm font-semibold text-green-800 dark:text-green-200">
+                后台任务运行中
+              </h4>
+              <p className="text-xs text-green-700 dark:text-green-300 mt-1">
+                作品正在生成中，您可以自由浏览其他页面
+              </p>
+              <button
+                onClick={() => setShowBackgroundTaskAlert(false)}
+                className="text-xs text-green-600 dark:text-green-400 hover:underline mt-2"
+              >
+                知道了
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 悬浮进度条 - 右侧固定 */}
       <CycleProgress />
 
@@ -127,6 +247,13 @@ function App() {
                     className="px-3 py-1.5 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-slate-700 rounded-lg transition-colors"
                   >
                     角色管理
+                  </a>
+                  <a
+                    href="/memory"
+                    className="px-3 py-1.5 text-sm text-purple-600 dark:text-purple-400 hover:bg-purple-100 dark:hover:bg-purple-900/30 rounded-lg transition-colors flex items-center gap-1"
+                  >
+                    <Database size={14} />
+                    记忆管理
                   </a>
                 </nav>
 

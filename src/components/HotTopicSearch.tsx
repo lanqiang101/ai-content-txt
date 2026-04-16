@@ -1,75 +1,61 @@
 import React, { useState } from "react";
-import { Search, Loader2, X, Sparkles, TrendingUp } from "lucide-react";
+import { Search, TrendingUp, Sparkles, Loader2, X, AlertCircle } from "lucide-react";
 import { Tooltip } from "./Tooltip";
-import { useRandomGenerate } from "../hooks/useRandomGenerate";
+import { useHotTopics } from "../hooks/useHotTopics";
+import { useNavigate } from "react-router-dom";
 
 interface HotTopicSearchProps {
   onSelectTopic: (topic: string) => void;
 }
 
 const DEFAULT_HOT_TOPICS = [
-  "重生回到大学时代",
-  "职场逆袭",
-  "甜宠霸总",
-  "穿越古代",
-  "末世生存",
-  "悬疑推理",
-  "系统流",
-  "战神归来",
-  "医武双绝",
-  "萌宝",
+  "废柴逆袭：获得神级系统，一路开挂",
+  "穿越重生：回到过去改写人生",
+  "都市修仙：隐世高手重返都市",
+  "甜宠娇妻：霸总老公轻点宠",
+  "悬疑推理：连环谜案背后的真相"
 ];
 
 export const HotTopicSearch: React.FC<HotTopicSearchProps> = ({ onSelectTopic }) => {
-  const { generateCandidates, loading } = useRandomGenerate();
+  const navigate = useNavigate();
+  const { generateHotTopics, loading, hasConfig } = useHotTopics();
   const [searchQuery, setSearchQuery] = useState("");
   const [results, setResults] = useState<string[]>([]);
   const [showResults, setShowResults] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
 
-   const handleSearch = async () => {
-     if (loading) return;
+  const handleSearch = async () => {
+    if (loading) return;
 
-     try {
-       const userInput = searchQuery.trim();
-       const searchResults = await generateCandidates(
-         `根据用户创意推荐2026年番茄热门小说主题`,
-         `用户输入了一个关键词或创意方向：【${userInput || '热门小说'}】。
-请基于这个方向，推荐**5个**当前2026年番茄小说平台热度最高、读者最喜爱的热门小说主题。
-要求：
-1. 必须贴合2026年最新热点，真正符合当下读者喜好
-2. 不一定要把用户原话原封不动放进去，可以基于用户创意拓展出真正畅销热门主题
-3. 每个主题一句话，简洁清晰，突出核心卖点和爽点
-4. 必须是现在番茄读者愿意点击的热门题材
+    if (!hasConfig) {
+      alert("未配置热门主题推荐模型\n\n请前往：系统配置 > 热门主题 > 选择一个模型");
+      navigate("/config");
+      return;
+    }
 
-请直接返回5个主题，每行一个主题，不要其他内容。`,
-         5
-       );
-       setResults(searchResults);
-       setHasSearched(true);
-       setShowResults(true);
-     } catch (error) {
-       console.error("Hot topic search failed:", error);
-       alert("搜索失败: " + (error as Error).message);
-     }
-   };
+    try {
+      const userInput = searchQuery.trim();
+      const searchResults = await generateHotTopics(userInput || undefined);
+      setResults(searchResults);
+      setHasSearched(true);
+      setShowResults(true);
+    } catch (error) {
+      console.error("Hot topic search failed:", error);
+      alert("搜索失败: " + (error as Error).message);
+    }
+  };
 
   const handleGetHotTopics = async () => {
     if (loading) return;
 
-     try {
-       const hotTopics = await generateCandidates(
-         "推荐2026年番茄热门的小说主题",
-         `请推荐**5个**2026年番茄小说平台当前热度最高、读者最喜爱的热门小说主题。
-要求：
-1. 必须是2026年最新最畅销的热门题材
-2. 具有高点击率、高完读率、高读者粘性
-3. 符合当下读者喜好，突出爽点和钩子
-4. 每个主题简洁一句话，直接列出
+    if (!hasConfig) {
+      alert("未配置热门主题推荐模型\n\n请前往：系统配置 > 热门主题 > 选择一个模型");
+      navigate("/config");
+      return;
+    }
 
-要求直接返回5个热门主题，每行一个。`,
-         5
-       );
+    try {
+      const hotTopics = await generateHotTopics();
       setResults(hotTopics);
       setHasSearched(true);
       setShowResults(true);
@@ -89,6 +75,27 @@ export const HotTopicSearch: React.FC<HotTopicSearchProps> = ({ onSelectTopic })
   const handleClose = () => {
     setShowResults(false);
   };
+
+  // 如果未配置模型，显示提示
+  if (!hasConfig) {
+    return (
+      <div className="w-full">
+        <div className="flex items-center gap-2 px-4 py-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+          <AlertCircle size={16} className="text-yellow-600 dark:text-yellow-400 flex-shrink-0" />
+          <p className="text-sm text-yellow-700 dark:text-yellow-300">
+            未配置热门主题模型，请前往{" "}
+            <button
+              onClick={() => navigate("/config")}
+              className="underline hover:text-yellow-800 dark:hover:text-yellow-200 font-medium"
+            >
+              系统配置
+            </button>
+            {" "}设置
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="relative inline-block w-full">

@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Clock, Loader2, RotateCcw } from "lucide-react";
+import { Clock, Loader2 } from "lucide-react";
 import { useStore } from "../store/useStore";
 import { useGeneration } from "../hooks/useGeneration";
 import { CYCLE_CONFIG } from "../hooks/constants";
@@ -69,11 +69,21 @@ export const TimerAutomation: React.FC = () => {
       const randomWordCount = Math.floor(
         Math.random() *
           (currentTimer.maxWordCount - currentTimer.minWordCount) +
-          currentTimer.minWordCount
+          currentTimer.minWordCount,
       );
 
       // 批量创作使用batchParams中的配置
-      const { reader, character, plot, rhythm, detail, emotion, antiAI, style, type } = batchParams;
+      const {
+        reader,
+        character,
+        plot,
+        rhythm,
+        detail,
+        emotion,
+        antiAI,
+        style,
+        type,
+      } = batchParams;
 
       // 设置参数（主题和字数使用批量随机，其他复用批量配置参数）
       useStore.getState().setParams({
@@ -96,11 +106,14 @@ export const TimerAutomation: React.FC = () => {
         const titleResults = await generateCandidates(
           `根据主题生成吸引人的小说标题`,
           `主题是：${randomTheme}。请生成3个不同风格的小说标题，标题要吸引读者点击，突出爽点和钩子。每行一个标题，不要其他文字。`,
-          3
+          3,
         );
         if (titleResults.length > 0) {
           // 随机选一个 - 这里可以后续用于设置标题参数
-          console.log("Generated title:", titleResults[Math.floor(Math.random() * titleResults.length)]);
+          console.log(
+            "Generated title:",
+            titleResults[Math.floor(Math.random() * titleResults.length)],
+          );
         }
       } catch (error) {
         console.error("Generate title failed, use default:", error);
@@ -131,44 +144,58 @@ export const TimerAutomation: React.FC = () => {
     }
   };
 
-  const handleResetBatch = () => {
-    setGeneratedCount(0);
-    setIsGenerating(false);
-    setTimerAutomation({ isRunning: false });
-    resetGeneration();
-    console.log("✅ 批量创作已重置");
-  };
-
   return (
     <div className="space-y-4">
       <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
         <p className="text-sm text-blue-700 dark:text-blue-300">
-          💡 批量自动创作会独立使用<strong>批量创作表单</strong>中的配置参数。启动后会自动连续生成直到完成目标数量，上一本完成直接开始下一本。
+          💡 批量自动创作会独立使用<strong>批量创作表单</strong>
+          中的配置参数。启动后会自动连续生成直到完成目标数量，上一本完成直接开始下一本。
         </p>
       </div>
 
-      {/* 创作数量 */}
-      <div className="grid grid-cols-1 gap-4">
-        <div>
+      {/* 小说篇幅 - 仅在小说类型时显示 */}
+      {batchParams.type === "novel" && (
+        <div className="space-y-2">
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-          创作数量（自动连续生成，直到完成）
+            小说篇幅
           </label>
-          <input
-            type="number"
-            min={1}
-            max={100}
-            value={timerAutomation.bookCount}
-            onChange={(e) =>
-              setTimerAutomation({ bookCount: parseInt(e.target.value) || 1 })
-            }
-            disabled={timerAutomation.isRunning}
-            className="w-full px-3 py-2 border border-gray-200 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 bg-white/80 dark:bg-slate-700/80 text-gray-900 dark:text-gray-100 disabled:opacity-50"
-          />
+          <div className="flex gap-3">
+            <button
+              className={`px-4 py-2 rounded-xl transition-all ${
+                batchParams.novelLength === "short" || !batchParams.novelLength
+                  ? "bg-primary text-white shadow-md shadow-primary/20"
+                  : "bg-gray-100 text-gray-700 dark:bg-slate-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-slate-600"
+              }`}
+              onClick={() =>
+                setBatchParams({
+                  novelLength: "short",
+                  initialChapters: undefined,
+                })
+              }
+            >
+              短篇
+            </button>
+            <button
+              className={`px-4 py-2 rounded-xl transition-all ${
+                batchParams.novelLength === "long"
+                  ? "bg-primary text-white shadow-md shadow-primary/20"
+                  : "bg-gray-100 text-gray-700 dark:bg-slate-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-slate-600"
+              }`}
+              onClick={() =>
+                setBatchParams({
+                  novelLength: "long",
+                  initialChapters: batchParams.initialChapters || 3,
+                })
+              }
+            >
+              长篇
+            </button>
+          </div>
         </div>
-      </div>
+      )}
 
-      {/* 字数范围 */}
-      <div className="grid grid-cols-2 gap-4">
+      {/* 字数范围、创作数量 */}
+      <div className="grid grid-cols-3 gap-4">
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
             最少字数
@@ -203,41 +230,26 @@ export const TimerAutomation: React.FC = () => {
             className="w-full px-3 py-2 border border-gray-200 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 bg-white/80 dark:bg-slate-700/80 text-gray-900 dark:text-gray-100 disabled:opacity-50"
           />
         </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            创作数量
+          </label>
+          <input
+            type="number"
+            min={1}
+            max={100}
+            value={timerAutomation.bookCount}
+            onChange={(e) =>
+              setTimerAutomation({ bookCount: parseInt(e.target.value) || 1 })
+            }
+            disabled={timerAutomation.isRunning}
+            className="w-full px-3 py-2 border border-gray-200 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 bg-white/80 dark:bg-slate-700/80 text-gray-900 dark:text-gray-100 disabled:opacity-50"
+          />
+        </div>
       </div>
 
-      {/* 小说篇幅 - 仅在小说类型时显示 */}
-      {batchParams.type === 'novel' && (
-        <div className="space-y-2">
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-            小说篇幅
-          </label>
-          <div className="flex gap-3">
-            <button
-              className={`px-4 py-2 rounded-xl transition-all ${
-                batchParams.novelLength === 'short' || !batchParams.novelLength
-                  ? "bg-primary text-white shadow-md shadow-primary/20"
-                  : "bg-gray-100 text-gray-700 dark:bg-slate-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-slate-600"
-              }`}
-              onClick={() => setBatchParams({ novelLength: 'short', initialChapters: undefined })}
-            >
-              短篇
-            </button>
-            <button
-              className={`px-4 py-2 rounded-xl transition-all ${
-                batchParams.novelLength === 'long'
-                  ? "bg-primary text-white shadow-md shadow-primary/20"
-                  : "bg-gray-100 text-gray-700 dark:bg-slate-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-slate-600"
-              }`}
-              onClick={() => setBatchParams({ novelLength: 'long', initialChapters: batchParams.initialChapters || 3 })}
-            >
-              长篇
-            </button>
-          </div>
-        </div>
-      )}
-
       {/* 初始章节数 - 仅在长篇小说时显示 */}
-      {batchParams.type === 'novel' && batchParams.novelLength === 'long' && (
+      {batchParams.type === "novel" && batchParams.novelLength === "long" && (
         <div className="space-y-2">
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
             初始章节数
@@ -328,7 +340,9 @@ export const TimerAutomation: React.FC = () => {
           <CharacterSection
             character={batchParams.character}
             onChange={(character) =>
-              setBatchParams({ character: { ...batchParams.character, ...character } })
+              setBatchParams({
+                character: { ...batchParams.character, ...character },
+              })
             }
           />
           <PlotSection
@@ -352,7 +366,9 @@ export const TimerAutomation: React.FC = () => {
           <EmotionSection
             emotion={batchParams.emotion}
             onChange={(emotion) =>
-              setBatchParams({ emotion: { ...batchParams.emotion, ...emotion } })
+              setBatchParams({
+                emotion: { ...batchParams.emotion, ...emotion },
+              })
             }
           />
           <AntiAISection
@@ -364,41 +380,33 @@ export const TimerAutomation: React.FC = () => {
         </div>
       )}
 
-      {/* 进度显示 + 重置按钮 */}
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex-1">
-          {timerAutomation.isRunning && (
-            <div className="flex items-center gap-3 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-              {isGenerating && (
-                <Loader2
-                  size={18}
-                  className="animate-spin text-blue-600 dark:text-blue-400"
-                />
-              )}
-              <div className="text-sm text-blue-700 dark:text-blue-300">
-                {isGenerating
-                  ? `正在生成第 ${generatedCount + 1}/${timerAutomation.bookCount} 本...`
-                  : `等待当前创作完成，准备开始下一本...`}
-              </div>
+      {/* 进度显示 */}
+      <div className="flex-1">
+        {timerAutomation.isRunning && (
+          <div className="flex items-center gap-3 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+            {isGenerating && (
+              <Loader2
+                size={18}
+                className="animate-spin text-blue-600 dark:text-blue-400"
+              />
+            )}
+            <div className="text-sm text-blue-700 dark:text-blue-300">
+              {isGenerating
+                ? `正在生成第 ${generatedCount + 1}/${timerAutomation.bookCount} 本...`
+                : `等待当前创作完成，准备开始下一本...`}
             </div>
-          )}
-          {!timerAutomation.isRunning && generatedCount > 0 && (
-            <div className="flex items-center gap-3 p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
-              <Clock size={18} className="text-green-600 dark:text-green-400" />
-              <div className="text-sm text-green-700 dark:text-green-300">
-                已完成 {generatedCount}/{timerAutomation.bookCount} 本自动创作
-              </div>
+          </div>
+        )}
+        {!timerAutomation.isRunning && generatedCount > 0 && (
+          <div className="flex items-center gap-3 p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
+            <Clock size={18} className="text-green-600 dark:text-green-400" />
+            <div className="text-sm text-green-700 dark:text-green-300">
+              已完成 {generatedCount}/{timerAutomation.bookCount} 本自动创作
             </div>
-          )}
-        </div>
-        <button
-          onClick={handleResetBatch}
-          className="flex items-center gap-2 px-4 py-3 text-sm font-medium text-orange-600 bg-orange-50 hover:bg-orange-100 dark:bg-orange-900/20 dark:hover:bg-orange-900/40 dark:text-orange-400 rounded-lg transition-all whitespace-nowrap"
-        >
-          <RotateCcw size={16} />
-          重置批量
-        </button>
+          </div>
+        )}
       </div>
+      
     </div>
   );
 };

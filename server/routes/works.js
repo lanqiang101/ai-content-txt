@@ -20,10 +20,22 @@ export default function (db) {
 
       res.json({
         works: works.map(row => ({
-          ...row,
+          id: row.id,
+          title: row.title,
+          topic: row.topic,
+          keywords: row.keywords,
+          type: row.type,
           expectedWordCount: Number(row.expected_word_count),
           actualWordCount: Number(row.actual_word_count),
+          chapterCount: Number(row.chapter_count),
+          status: row.status,
+          chapters: row.chapters ? JSON.parse(row.chapters) : [],
+          characters: row.characters ? JSON.parse(row.characters) : [],
+          createdAt: Number(row.created_at),
+          updatedAt: Number(row.updated_at), // 🔥 字段映射：updated_at -> updatedAt
           storyboardIds: row.storyboard_ids ? JSON.parse(row.storyboard_ids) : undefined,
+          content: row.content,
+          generationParams: row.generation_params ? JSON.parse(row.generation_params) : undefined,
         })),
         total: Number(totalResult.count),
         page,
@@ -42,10 +54,22 @@ export default function (db) {
         return res.json(null);
       }
       res.json({
-        ...work,
+        id: work.id,
+        title: work.title,
+        topic: work.topic,
+        keywords: work.keywords,
+        type: work.type,
         expectedWordCount: Number(work.expected_word_count),
         actualWordCount: Number(work.actual_word_count),
+        chapterCount: Number(work.chapter_count),
+        status: work.status,
+        chapters: work.chapters ? JSON.parse(work.chapters) : [],
+        characters: work.characters ? JSON.parse(work.characters) : [],
+        createdAt: Number(work.created_at),
+        updatedAt: Number(work.updated_at), // 🔥 字段映射
         storyboardIds: work.storyboard_ids ? JSON.parse(work.storyboard_ids) : undefined,
+        content: work.content,
+        generationParams: work.generation_params ? JSON.parse(work.generation_params) : undefined,
       });
     } catch (error) {
       res.status(500).json({ error: error.message });
@@ -61,17 +85,33 @@ export default function (db) {
       }
       const chapters = db.prepare('SELECT * FROM chapters WHERE work_id = ? AND deleted_at IS NULL ORDER BY chapter_number ASC').all(req.params.id);
       res.json({
-        ...work,
+        id: work.id,
+        title: work.title,
+        topic: work.topic,
+        keywords: work.keywords,
+        type: work.type,
         expectedWordCount: Number(work.expected_word_count),
         actualWordCount: Number(work.actual_word_count),
+        chapterCount: Number(work.chapter_count),
+        status: work.status,
+        chapters: work.chapters ? JSON.parse(work.chapters) : [],
+        characters: work.characters ? JSON.parse(work.characters) : [],
+        createdAt: Number(work.created_at),
+        updatedAt: Number(work.updated_at), // 🔥 字段映射
         storyboardIds: work.storyboard_ids ? JSON.parse(work.storyboard_ids) : undefined,
+        content: work.content,
+        generationParams: work.generation_params ? JSON.parse(work.generation_params) : undefined,
         chapters: chapters.map(row => ({
-          ...row,
+          id: row.id,
           workId: row.work_id,
+          title: row.title,
+          summary: row.summary,
+          content: row.content,
           chapterNumber: row.chapter_number,
           wordCount: row.word_count,
-          createdAt: row.created_at,
-          updatedAt: row.updated_at,
+          status: row.status,
+          createdAt: Number(row.created_at),
+          updatedAt: Number(row.updated_at),
         })),
       });
     } catch (error) {

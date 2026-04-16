@@ -8,6 +8,7 @@ import WorkDetailPage from './pages/WorkDetailPage';
 import ConfigPage from './pages/ConfigPage';
 import ModelManagementPage from './pages/ModelManagementPage';
 import CharacterListPage from './pages/CharacterListPage';
+import { MemoryManagerPage } from './pages/MemoryManagerPage';
 
 export const Router: React.FC = () => {
   return (
@@ -23,6 +24,7 @@ export const Router: React.FC = () => {
         <Route path="/storyboards" element={<StoryboardManagementPage />} />
         <Route path="/characters/create" element={<CharacterPage />} />
         <Route path="/characters/new" element={<CharacterPage />} />
+        <Route path="/memory" element={<MemoryManagerPage />} />
       </Routes>
     </BrowserRouter>
   );

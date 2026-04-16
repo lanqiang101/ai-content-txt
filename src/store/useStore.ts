@@ -128,6 +128,18 @@ const getDefaultConfig = (): PipelineConfig => {
       models: [defaultModelConfig('ep-20250210-xxxxx')],
       activeModelId: defaultModel.id,
     },
+    popularTopics: {
+      models: [defaultModelConfig('ep-20250210-xxxxx')],
+      activeModelId: defaultModel.id,
+    },
+    chapterContinuation: {
+      models: [defaultModel],
+      activeModelId: defaultModel.id,
+    },
+    chapterOptimization: {
+      models: [defaultModelConfig('ep-20250210-xxxxx')],
+      activeModelId: defaultModel.id,
+    },
   };
 };
 
@@ -382,36 +394,79 @@ export const useStore = create<AppState>()(
               return;
             }
             
-            const defaultModel = enabledModels[0];
-            const modelList = enabledModels.map(model => ({
-              id: String(model.id),
-              name: model.name,
-              mode: model.mode as 'local' | 'remote' | 'openai' | 'api',
-              modelName: model.modelName,
-              apiKey: model.apiKey,
-              apiUrl: model.baseUrl,
-              baseUrl: model.baseUrl,
-              maxTokens: model.maxTokens,
-              temperature: model.temperature,
-              topP: 0.9,
-              timeout: 30000,
-              provider: 'custom',
-              model: model.modelName,
-              enabled: model.enabled,
-            }));
+            // 获取系统配置中的stage模型ID
+            const systemConfig = await dbService.getAllAppConfig();
+            console.log('📋 系统配置:', systemConfig);
+            
+            const modelList = enabledModels.map(model => {
+              // 根据mode字段判断是本地还是远程模式
+              const isLocalMode = model.mode === 'local';
+              
+              const mappedModel = {
+                id: String(model.id),
+                name: model.name,
+                mode: model.mode as 'local' | 'remote' | 'openai' | 'api',
+                modelName: model.modelName,
+                apiKey: model.apiKey,
+                // 关键修复：根据mode决定使用哪个URL字段
+                apiUrl: isLocalMode ? '' : model.baseUrl,
+                localUrl: isLocalMode ? model.baseUrl : 'http://localhost:11434',
+                baseUrl: model.baseUrl,
+                maxTokens: model.maxTokens,
+                temperature: model.temperature,
+                topP: 0.9,
+                timeout: 30000,
+                provider: 'custom',
+                model: model.modelName,
+                enabled: model.enabled,
+              };
+              
+              // 添加详细日志
+              console.log(`📦 模型映射 [${model.name}]:`, {
+                mode: model.mode,
+                isLocalMode,
+                baseUrl: model.baseUrl,
+                apiUrl: mappedModel.apiUrl,
+                localUrl: mappedModel.localUrl,
+              });
+              
+              return mappedModel;
+            });
+            
+            // 从系统配置中读取每个stage的activeModelId，如果没有则使用第一个模型
+            const getActiveModelId = (stageKey: string) => {
+              const configKey = `${stageKey}_model_id`;
+              const savedId = systemConfig?.[configKey];
+              // 如果保存的ID存在且在当前模型列表中，则使用它；否则使用第一个模型
+              if (savedId && modelList.find(m => m.id === String(savedId))) {
+                return String(savedId);
+              }
+              return modelList[0]?.id || '';
+            };
             
             set((state) => ({
               config: {
                 ...state.config,
-                stage1: { models: modelList, activeModelId: String(defaultModel.id) },
-                stage2: { models: modelList, activeModelId: String(defaultModel.id) },
-                stage3: { models: modelList, activeModelId: String(defaultModel.id) },
-                random: { models: modelList, activeModelId: String(defaultModel.id) },
-                storyboard: { models: modelList, activeModelId: String(defaultModel.id) },
+                stage1: { models: modelList, activeModelId: getActiveModelId('stage1') },
+                stage2: { models: modelList, activeModelId: getActiveModelId('stage2') },
+                stage3: { models: modelList, activeModelId: getActiveModelId('stage3') },
+                random: { models: modelList, activeModelId: getActiveModelId('random') },
+                storyboard: { models: modelList, activeModelId: getActiveModelId('storyboard') },
+                popularTopics: { models: modelList, activeModelId: getActiveModelId('popularTopics') },
+                chapterContinuation: { models: modelList, activeModelId: getActiveModelId('chapterContinuation') },
+                chapterOptimization: { models: modelList, activeModelId: getActiveModelId('chapterOptimization') },
               },
             }));
             
             console.log('✅ 已从数据库加载模型配置:', enabledModels.length, '个模型');
+            console.log('🎯 Stage配置 -', 
+              'stage1:', getActiveModelId('stage1'),
+              'stage2:', getActiveModelId('stage2'),
+              'stage3:', getActiveModelId('stage3'),
+              'popularTopics:', getActiveModelId('popularTopics'),
+              'chapterContinuation:', getActiveModelId('chapterContinuation'),
+              'chapterOptimization:', getActiveModelId('chapterOptimization')
+            );
           } catch (e) {
             console.error('❌ 从数据库加载配置失败:', e);
           }
@@ -524,31 +579,17 @@ export const useStore = create<AppState>()(
     },
     {
       name: 'ai-content-txt-config',
-      // persist 配置到 localStorage 作为兜底
+      // 🔥 只持久化配置数据，不持久化运行时状态
+      partialize: (state) => ({
+        config: state.config,
+        params: state.params,
+        singleParams: state.singleParams,
+        batchParams: state.batchParams,
+        history: state.history,
+        // 不持久化: generation, works, currentWorkId, bookOutlines, timerAutomation
+      }),
     }
   )
 );
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 

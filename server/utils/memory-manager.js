@@ -408,59 +408,77 @@ ${content}
   }
 
   /**
-   * 根据当前prompt检索相关记忆
+   * 根据当前prompt检索相关记忆（带优先级权重）
    * @param {string} query - 当前生成prompt
    * @param {number} topK - 返回结果数量
-   * @returns {Promise<Array<{id: string, type: string, content: string, metadata: Object, similarity: number}>>}
+   * @param {string} filterType - 可选的类型过滤 (character/foreshadowing/chapter/plot)
+   * @returns {Promise<Array<{id: string, type: string, content: string, metadata: Object, similarity: number, weightedScore: number}>>}
    */
-  async retrieveRelated(query, topK = 5) {
+  async retrieveRelated(query, topK = 5, filterType = null) {
     if (!this.isInitialized) {
       console.warn('[MemoryManager] Not initialized, returning empty results');
       return [];
     }
 
-    console.log('[MemoryManager] Retrieving with query:', query.substring(0, 100));
+    console.log('[MemoryManager] Retrieving with query:', query.substring(0, 100), filterType ? `(filter: ${filterType})` : '');
     
     try {
       // 生成查询向量
       const queryVector = await this.embedText(query);
 
-      // 获取所有记忆进行比对 (在生产环境中，如果数据量极大，应考虑使用 SQLite 向量扩展或预过滤)
-      const memories = this.db.prepare(`SELECT * FROM ${this.collectionName}`).all();
+      // 根据filterType构建SQL查询
+      let sql = `SELECT * FROM ${this.collectionName}`;
+      if (filterType) {
+        sql += ` WHERE type = ?`;
+      }
+      
+      const memories = filterType 
+        ? this.db.prepare(sql).all(filterType)
+        : this.db.prepare(sql).all();
       
       if (memories.length === 0) {
         return [];
       }
 
-      // 计算相似度并排序
+      // 🔥 记忆类型优先级权重
+      const typeWeights = {
+        character: 1.5,      // 人物设定最重要
+        foreshadowing: 1.3,  // 伏笔次之
+        chapter: 1.0,        // 章节内容基础权重
+        plot: 1.2,           // 情节线索
+      };
+
+      // 计算相似度并应用权重
       const scored = memories.map(memory => {
         // SQLite BLOB 转回 Float32Array
-        // 注意：Buffer.from 创建的是 Uint8Array，需要正确解释为 Float32
         const vectorBuffer = memory.vector;
-        // 假设存储时是 Float32Array 的 buffer
         const vector = new Float32Array(vectorBuffer.buffer, vectorBuffer.byteOffset, vectorBuffer.byteLength / 4);
         
-        const similarity = this.cosineSimilarity(queryVector, vector);
+        const baseSimilarity = this.cosineSimilarity(queryVector, vector);
+        const typeWeight = typeWeights[memory.type] || 1.0;
+        const weightedScore = baseSimilarity * typeWeight;
+        
         return {
           id: memory.id,
-          type: memory.type, // 从 metadata 中解析更稳妥，但 type 列也存在
+          type: memory.type,
           content: memory.content,
           metadata: JSON.parse(memory.metadata),
-          similarity,
+          similarity: baseSimilarity,
+          weightedScore,
         };
       });
 
-      // 按相似度降序排序，返回topK
+      // 按加权分数降序排序，返回topK
       const results = scored
-        .sort((a, b) => b.similarity - a.similarity)
+        .sort((a, b) => b.weightedScore - a.weightedScore)
         .slice(0, topK);
 
-      console.log(`[MemoryManager] Retrieved ${results.length} relevant memories`);
+      console.log(`[MemoryManager] Retrieved ${results.length} relevant memories (weighted)`);
       return results;
 
     } catch (error) {
       console.error('[MemoryManager] Query failed:', error);
-      return []; // 返回空数组而不是抛出错误
+      return [];
     }
   }
 
@@ -500,44 +518,106 @@ ${content}
    * 获取所有未回收的伏笔
    */
   async getUnresolvedForeshadowings() {
-    if (!this.isInitialized) return [];
+    if (!this.isInitialized) {
+      return [];
+    }
+
+    const stmt = this.db.prepare(`SELECT * FROM ${this.collectionName} WHERE type = 'foreshadowing'`);
+    const memories = stmt.all();
     
-    const rows = this.db.prepare(`SELECT * FROM ${this.collectionName} WHERE type = 'foreshadowing'`).all();
-    return rows
-      .map(r => JSON.parse(r.metadata))
-      .filter(m => !m.resolved);
+    return memories
+      .map(m => ({
+        ...m,
+        metadata: JSON.parse(m.metadata),
+      }))
+      .filter(m => !m.metadata.resolved);
   }
 
   /**
-   * 获取所有人物列表
+   * 🔥 记忆压缩：合并相似的人物记忆
+   * @param {number} similarityThreshold - 相似度阈值（默认0.85）
    */
-  async getAllCharacters() {
-    if (!this.isInitialized) return [];
+  async compressSimilarMemories(similarityThreshold = 0.85) {
+    if (!this.isInitialized) {
+      console.warn('[MemoryManager] Not initialized, skipping compression');
+      return;
+    }
 
-    const rows = this.db.prepare(`SELECT * FROM ${this.collectionName} WHERE type = 'character'`).all();
-    return rows.map(r => JSON.parse(r.metadata));
+    console.log('[MemoryManager] Starting memory compression...');
+    
+    // 获取所有人物记忆
+    const characters = this.db.prepare(`SELECT * FROM ${this.collectionName} WHERE type = 'character'`).all();
+    
+    let mergedCount = 0;
+    
+    for (let i = 0; i < characters.length; i++) {
+      for (let j = i + 1; j < characters.length; j++) {
+        const char1 = characters[i];
+        const char2 = characters[j];
+        
+        // 计算相似度
+        const vec1 = new Float32Array(char1.vector.buffer, char1.vector.byteOffset, char1.vector.byteLength / 4);
+        const vec2 = new Float32Array(char2.vector.buffer, char2.vector.byteOffset, char2.vector.byteLength / 4);
+        const similarity = this.cosineSimilarity(vec1, vec2);
+        
+        if (similarity > similarityThreshold) {
+          console.log(`[MemoryManager] Merging similar characters: ${char1.metadata.name} & ${char2.metadata.name} (similarity: ${similarity.toFixed(2)})`);
+          
+          // 合并元数据
+          const meta1 = JSON.parse(char1.metadata);
+          const meta2 = JSON.parse(char2.metadata);
+          
+          const mergedMetadata = {
+            ...meta1,
+            events: [...(meta1.events || []), ...(meta2.events || [])],
+            mergedFrom: [meta1.characterId, meta2.characterId],
+            mergedAt: Date.now(),
+          };
+          
+          // 更新第一个记录，删除第二个
+          this.db.prepare(`UPDATE ${this.collectionName} SET metadata = ?, updated_at = ? WHERE id = ?`).run(
+            JSON.stringify(mergedMetadata),
+            Date.now(),
+            char1.id
+          );
+          
+          this.db.prepare(`DELETE FROM ${this.collectionName} WHERE id = ?`).run(char2.id);
+          mergedCount++;
+        }
+      }
+    }
+    
+    console.log(`[MemoryManager] Compression complete: merged ${mergedCount} memories`);
+    return mergedCount;
   }
 
   /**
-   * 获取记忆统计信息（同步方法）
+   * 获取记忆统计信息
    */
   getStats() {
     if (!this.isInitialized) {
-      return { initialized: false, totalMemories: 0, byType: {} };
+      return {
+        initialized: false,
+        totalMemories: 0,
+        byType: {},
+      };
     }
 
-    const total = this.db.prepare(`SELECT COUNT(*) as count FROM ${this.collectionName}`).get();
-    const byType = this.db.prepare(`
-      SELECT type, COUNT(*) as count FROM ${this.collectionName} GROUP BY type
-    `).all();
-
+    const totalStmt = this.db.prepare(`SELECT COUNT(*) as count FROM ${this.collectionName}`);
+    const typeStmt = this.db.prepare(`SELECT type, COUNT(*) as count FROM ${this.collectionName} GROUP BY type`);
+    
+    const total = totalStmt.get();
+    const byTypeRows = typeStmt.all();
+    
+    const byType = {};
+    byTypeRows.forEach(row => {
+      byType[row.type] = row.count;
+    });
+    
     return {
       initialized: true,
       totalMemories: total.count,
-      byType: byType.reduce((acc, row) => {
-        acc[row.type] = row.count;
-        return acc;
-      }, {}),
+      byType,
     };
   }
 

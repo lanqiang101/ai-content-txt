@@ -1,8 +1,9 @@
 import React, { useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
-import { Dice1, Loader2, X, Sparkles } from "lucide-react";
-import { useRandomGenerate } from "../../hooks/useRandomGenerate";
+import { Dice1, Loader2, X, Sparkles, AlertCircle } from "lucide-react";
+import { useRandomConfig } from "../../hooks/useRandomConfig";
 import { Tooltip } from "../Tooltip";
+import { useNavigate } from "react-router-dom";
 
 interface RandomInspireButtonProps {
   fieldDescription: string;
@@ -21,9 +22,11 @@ export const RandomInspireButton: React.FC<RandomInspireButtonProps> = ({
   onSelect,
   className = "",
 }) => {
-  const { generateCandidates, loading } = useRandomGenerate();
+  const navigate = useNavigate();
+  const { generateCandidates, loading, hasConfig } = useRandomConfig();
   const [open, setOpen] = useState(false);
   const [candidates, setCandidates] = useState<string[]>([]);
+  const [error, setError] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [position, setPosition] = useState({ top: 0, left: 0, width: 256 });
 
@@ -40,7 +43,18 @@ export const RandomInspireButton: React.FC<RandomInspireButtonProps> = ({
   };
 
   const handleGenerate = async (inspire: boolean) => {
+    if (!hasConfig) {
+      setError("未配置随机生成模型");
+      setTimeout(() => {
+        if (window.confirm("未配置随机生成模型\n\n是否前往系统配置？")) {
+          navigate("/config");
+        }
+      }, 100);
+      return;
+    }
+
     try {
+      setError(null);
       let finalDescription = fieldDescription;
       let finalRules = rules;
 
@@ -58,9 +72,10 @@ export const RandomInspireButton: React.FC<RandomInspireButtonProps> = ({
       setCandidates(results);
       updatePosition();
       setOpen(true);
-    } catch (error) {
-      console.error("Random generate failed:", error);
-      alert("随机生成失败: " + (error as Error).message);
+    } catch (err) {
+      console.error("Random generate failed:", err);
+      setError((err as Error).message);
+      setTimeout(() => setError(null), 3000);
     }
   };
 
@@ -71,6 +86,7 @@ export const RandomInspireButton: React.FC<RandomInspireButtonProps> = ({
 
   const handleClose = () => {
     setOpen(false);
+    setError(null);
   };
 
   // 更新位置当窗口滚动或 resize
@@ -87,20 +103,40 @@ export const RandomInspireButton: React.FC<RandomInspireButtonProps> = ({
     return undefined;
   }, [open]);
 
-  const isLoading = loading;
+  // 如果未配置模型，显示提示
+  if (!hasConfig) {
+    return (
+      <Tooltip content="未配置模型">
+        <button
+          ref={containerRef}
+          onClick={() => navigate("/config")}
+          className="flex items-center justify-center w-7 h-7 rounded-full bg-gray-300 dark:bg-gray-600 cursor-not-allowed transition-all shadow-sm text-gray-500 dark:text-gray-400"
+        >
+          <AlertCircle size={14} />
+        </button>
+      </Tooltip>
+    );
+  }
 
   return (
     <div
       className={`relative inline-flex items-center gap-1 ${className}`}
       ref={containerRef}
     >
-      <Tooltip content="重新生成">
+      {/* 错误提示 */}
+      {error && (
+        <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 px-3 py-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-xs text-red-700 dark:text-red-300 whitespace-nowrap z-[101]">
+          {error}
+        </div>
+      )}
+
+      <Tooltip content="随机生成">
         <button
           onClick={() => handleGenerate(false)}
-          disabled={isLoading}
-          className="flex items-center justify-center w-7 h-7 rounded-full bg-gradient-to-br from-slate-500 to-slate-600 hover:from-slate-600 hover:to-slate-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm hover:shadow-md text-white"
+          disabled={loading}
+          className="flex items-center justify-center w-7 h-7 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm hover:shadow-md text-white"
         >
-          {isLoading ? (
+          {loading ? (
             <Loader2 size={14} className="animate-spin" />
           ) : (
             <Dice1 size={14} />
@@ -108,13 +144,13 @@ export const RandomInspireButton: React.FC<RandomInspireButtonProps> = ({
         </button>
       </Tooltip>
 
-      <Tooltip content="基于当前内容联想优化">
+      <Tooltip content="基于已有内容联想">
         <button
           onClick={() => handleGenerate(true)}
-          disabled={isLoading || !currentValue.trim()}
+          disabled={loading || !currentValue.trim()}
           className="flex items-center justify-center w-7 h-7 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm hover:shadow-md text-white"
         >
-          {isLoading ? (
+          {loading ? (
             <Loader2 size={14} className="animate-spin" />
           ) : (
             <Sparkles size={14} />
@@ -139,17 +175,18 @@ export const RandomInspireButton: React.FC<RandomInspireButtonProps> = ({
               }}
             >
               <div className="flex items-center justify-between mb-2">
-                <div className="text-sm font-medium text-gray-700 dark:text-gray-300 px-1">
-                  选择一个填入：
+                <div className="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center gap-1">
+                  <Dice1 size={14} className="text-purple-500" />
+                  随机候选
                 </div>
                 <button
                   onClick={handleClose}
-                  className="p-1 rounded-full hover:bg-gray-100 dark:hover:bg-slate-700 text-gray-500 dark:text-gray-400 transition-colors"
+                  className="p-1 rounded-full hover:bg-gray-100 dark:hover:bg-slate-700 text-gray-500"
                 >
                   <X size={14} />
                 </button>
               </div>
-              <div className="space-y-2">
+              <div className="space-y-2 max-h-60 overflow-y-auto">
                 {candidates.map((candidate, index) => (
                   <button
                     key={index}
@@ -162,7 +199,7 @@ export const RandomInspireButton: React.FC<RandomInspireButtonProps> = ({
               </div>
             </div>
           </>,
-          document.body,
+          document.body
         )}
     </div>
   );

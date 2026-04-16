@@ -32,25 +32,59 @@ interface SystemConfigData {
   stage3: number | null;
   random: number | null;
   storyboard: number | null;
+  chapterContinuation: number | null; // 章节续写
+  chapterOptimization: number | null; // 章节优化
+  popularTopics: number | null; // 热门主题推荐
 }
 
 const stageDefinitions = [
   {
     key: "stage1",
-    label: "阶段1 - 骨架搭建",
+    label: "阶段1",
+    fullLabel: "阶段1 - 骨架搭建",
     description: "创建小说整体骨架，设定世界观、人物、故事大纲",
   },
-  { key: "stage2", label: "阶段2 - 血肉填充", description: "逐章生成正文内容" },
+  { 
+    key: "stage2", 
+    label: "阶段2",
+    fullLabel: "阶段2 - 血肉填充",
+    description: "逐章生成正文内容" 
+  },
   {
     key: "stage3",
-    label: "阶段3 - 去AI打磨",
+    label: "阶段3",
+    fullLabel: "阶段3 - 去AI打磨",
     description: "润色去AI化，让文风更自然",
   },
-  { key: "random", label: "随机候选词", description: "生成章节关键词随机候选" },
+  { 
+    key: "random", 
+    label: "随机候选词",
+    fullLabel: "随机候选词",
+    description: "生成章节关键词随机候选" 
+  },
   {
     key: "storyboard",
     label: "分镜生成",
+    fullLabel: "分镜生成",
     description: "生成视频、漫画分镜脚本",
+  },
+  {
+    key: "chapterContinuation",
+    label: "章节续写",
+    fullLabel: "章节续写",
+    description: "用于作品详情页的章节续写功能，建议选择擅长长文本生成的模型",
+  },
+  {
+    key: "chapterOptimization",
+    label: "章节优化",
+    fullLabel: "章节AI优化",
+    description: "用于章节内容的AI优化和润色，建议选择擅长文本优化的模型",
+  },
+  {
+    key: "popularTopics",
+    label: "热门主题",
+    fullLabel: "热门主题推荐",
+    description: "用于生成热门主题推荐内容，建议选择创意性强的模型",
   },
 ] as const;
 
@@ -67,6 +101,9 @@ export const ConfigPage: React.FC = () => {
     stage3: null,
     random: null,
     storyboard: null,
+    chapterContinuation: null,
+    chapterOptimization: null,
+    popularTopics: null,
   });
 
   // 页面加载时从后端加载
@@ -90,6 +127,9 @@ export const ConfigPage: React.FC = () => {
             stage3: systemConfig.stage3_model_id || null,
             random: systemConfig.random_model_id || null,
             storyboard: systemConfig.storyboard_model_id || null,
+            chapterContinuation: systemConfig.chapter_continuation_model_id || null,
+            chapterOptimization: systemConfig.chapter_optimization_model_id || null,
+            popularTopics: systemConfig.popular_topics_model_id || null,
           });
         }
       } catch (err) {
@@ -131,9 +171,9 @@ export const ConfigPage: React.FC = () => {
   };
 
   // 根据ID获取模型信息
-  const getModelById = (id: number | null) => {
+  const getModelById = (id: number | null | undefined) => {
     if (!id) return null;
-    return availableModels.find((m) => m.id === id);
+    return availableModels.find((m) => String(m.id) === String(id));
   };
 
   return (
@@ -193,10 +233,10 @@ export const ConfigPage: React.FC = () => {
       {/* Tab 布局 */}
       <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg border border-gray-200/50 dark:border-slate-700/50 overflow-hidden">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-5 border-b border-gray-200 dark:border-slate-700">
+          <TabsList className="grid w-full grid-cols-8 border-b border-gray-200 dark:border-slate-700">
             {stageDefinitions.map((stage) => (
               <TabsTrigger key={stage.key} value={stage.key}>
-                {stage.label.split(" -")[0]}
+                {stage.label}
               </TabsTrigger>
             ))}
           </TabsList>
@@ -206,7 +246,7 @@ export const ConfigPage: React.FC = () => {
               <div className="space-y-6">
                 <div>
                   <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-1">
-                    {stage.label}
+                    {stage.fullLabel}
                   </h3>
                   <p className="text-sm text-gray-500 dark:text-gray-400">
                     {stage.description}

@@ -1,6 +1,6 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import { Trash2, FileText, BookOpen, Clapperboard } from "lucide-react";
+import { Trash2, FileText, BookOpen, Clapperboard, Play, Square } from "lucide-react";
 import { Work, WorkStatus } from "../../types";
 import { Tooltip } from "../Tooltip";
 
@@ -8,23 +8,42 @@ interface WorkCardProps {
   work: Work;
   onSelect: () => void;
   onDelete: () => void;
+  onStopTask?: (workId: string) => void; // 🔥 新增：终止任务回调
 }
 
-export const WorkCard: React.FC<WorkCardProps> = ({ work, onSelect, onDelete }) => {
+export const WorkCard: React.FC<WorkCardProps> = ({ work, onSelect, onDelete, onStopTask }) => {
   const navigate = useNavigate();
-  const formatDate = (timestamp: number) => {
-    return new Date(timestamp).toLocaleString("zh-CN");
+  
+  // 🔥 安全的时间格式化函数
+  const formatDate = (timestamp: number | undefined | null) => {
+    if (!timestamp || timestamp === 0) {
+      return '未知时间';
+    }
+    
+    try {
+      const date = new Date(timestamp);
+      // 检查日期是否有效
+      if (isNaN(date.getTime())) {
+        return '未知时间';
+      }
+      return date.toLocaleString("zh-CN");
+    } catch (error) {
+      console.warn('[WorkCard] Invalid date:', timestamp, error);
+      return '未知时间';
+    }
   };
 
   const statusLabels: Record<WorkStatus, string> = {
-    drafting: "创作中",
+    draft: "草稿",
+    generating: "生成中",
     completed: "已完成",
     failed: "失败",
     archived: "已归档",
   };
 
   const statusColors: Record<WorkStatus, string> = {
-    drafting: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300",
+    draft: "bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300",
+    generating: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 animate-pulse",
     completed: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300",
     failed: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300",
     archived: "bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300",
@@ -33,6 +52,20 @@ export const WorkCard: React.FC<WorkCardProps> = ({ work, onSelect, onDelete }) 
   const handleStoryboardClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     navigate(`/storyboard?workId=${work.id}`);
+  };
+
+  // 🔥 处理继续生成
+  const handleContinueGeneration = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    navigate('/');
+  };
+
+  // 🔥 处理终止任务
+  const handleStopTask = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (onStopTask) {
+      onStopTask(work.id);
+    }
   };
 
   const hasStoryboards = work.storyboardIds && work.storyboardIds.length > 0;
@@ -58,6 +91,31 @@ export const WorkCard: React.FC<WorkCardProps> = ({ work, onSelect, onDelete }) 
           </span>
         </div>
         <div className="flex items-center gap-1">
+          {/* 🔥 如果作品正在生成，显示"继续"和"终止"按钮 */}
+          {work.status === 'generating' && (
+            <>
+              <button
+                onClick={handleContinueGeneration}
+                className="opacity-0 group-hover:opacity-100 p-1.5 text-green-500 hover:text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg transition-all"
+                title="返回创作页面查看进度"
+              >
+                <Tooltip content="继续生成">
+                  <Play size={14} />
+                </Tooltip>
+              </button>
+              
+              <button
+                onClick={handleStopTask}
+                className="opacity-0 group-hover:opacity-100 p-1.5 text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all"
+                title="终止生成任务"
+              >
+                <Tooltip content="终止任务">
+                  <Square size={14} fill="currentColor" />
+                </Tooltip>
+              </button>
+            </>
+          )}
+          
           <button
             onClick={handleStoryboardClick}
             className="opacity-0 group-hover:opacity-100 p-1.5 text-pink-500 hover:text-pink-600 hover:bg-pink-50 dark:hover:bg-pink-900/20 rounded-lg transition-all"
@@ -94,7 +152,7 @@ export const WorkCard: React.FC<WorkCardProps> = ({ work, onSelect, onDelete }) 
         <div className="mt-2 pt-2 border-t border-gray-200 dark:border-slate-600">
           <span className="text-xs text-pink-500 flex items-center gap-1">
             <Clapperboard size={12} />
-            {work.storyboardIds.length} 个分镜
+            {work.storyboardIds?.length || 0} 个分镜
           </span>
         </div>
       )}

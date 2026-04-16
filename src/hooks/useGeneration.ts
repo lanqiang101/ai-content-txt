@@ -17,6 +17,10 @@ export const useGeneration = () => {
   const { generateCharacter } = useCharacterGenerate();
   const { generateStoryboard } = useStoryboardGenerate();
 
+  // 🔥 注意：已移除组件卸载时自动停止的逻辑
+  // 任务将在后台持续运行，用户可以自由跳转页面
+  // 如需停止，请手动调用 stop() 方法
+
   const stop = useCallback(() => {
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
@@ -28,7 +32,9 @@ export const useGeneration = () => {
   const start = useCallback(async () => {
     const abortController = new AbortController();
     abortControllerRef.current = abortController;
-    await startGeneration(singleParams);
+    
+    // 🔥 传递signal给startGeneration，支持中途取消
+    await startGeneration(singleParams, abortController.signal);
   }, [singleParams, startGeneration]);
 
   const generateNextCycle = useCallback(async () => {

@@ -1,5 +1,12 @@
 import { GenerationParams } from '../types';
 
+// 默认配置，如果外部未提供
+const CYCLE_CONFIG = {
+  stage2: {
+    cycles: 5,
+  },
+};
+
 export const usePromptBuilder = () => {
 
   const getPlatformName = (platform: string): string => {
@@ -186,36 +193,61 @@ ${plot?.forceConflictAtStart ? '- 开篇强制冲突\n' : ''}${plot?.seedForesha
 - 平均段落长度：${rhythm?.averageParaLength || 'short'}
 - 冲突频率：${rhythm?.conflictFrequency || 50}%
 
-请输出：
+请 output：
 1. 完整故事大纲（分章节）
 2. 主角人设
 3. 开篇第一章的详细大纲
 4. 预计章节列表
 
-用markdown格式输出，清晰分点。`;
+用代码 format output，清晰分点。`;
   };
 
   const buildStage2Prompt = (
     stage1Result: string,
     params: GenerationParams,
-    currentWordCount: number
+    currentWordCount: number,
+    relatedMemory: string = ''
   ): string => {
     const { wordCount } = params;
     const remainingWords = wordCount - currentWordCount;
+    const targetWords = remainingWords > 0 ? remainingWords : wordCount;
+    const cycles = CYCLE_CONFIG.stage2.cycles;
+    const wordsPerCycle = Math.ceil(targetWords / cycles);
 
     let prompt = `我已经写好了小说大纲，请你帮我把它扩展写成完整正文。
+
+## 相关记忆参考
+${relatedMemory || '（无相关记忆）'}
 
 大纲内容：
 ${stage1Result}
 
-当前已经写了 ${currentWordCount} 字，还需要写大约 ${remainingWords > 0 ? remainingWords : wordCount} 字。
+当前已经写了 ${currentWordCount} 字，还需要写大约 ${targetWords} 字。
+
+## ⚠️ 字数控制指令（最高优先级）
+你必须生成 **${wordsPerCycle}字** 的内容。
+- 最少不能低于 ${Math.floor(wordsPerCycle * 0.9)} 字
+- 最多不能超过 ${Math.ceil(wordsPerCycle * 1.1)} 字
+- 每生成一个段落，请 mental 计算已生成的字数
+- 如果字数不足，请继续扩写细节、对话、描写
+- 如果字数过多，请精简冗余描述
+- **必须在文末标注实际字数**：[字数：1234]
+
+当前任务：生成约 ${wordsPerCycle} 字的内容。
+
+## 扩写指南
+为了达到字数要求，你可以：
+1. 增加对话细节和人物互动
+2. 深入描写环境和氛围
+3. 添加内心独白和心理活动
+4. 扩展动作描写和感官细节
+5. 增加次要情节和支线
+6. 丰富配角的反应和对话
 
 请遵循以下要求继续写作：
 `;
 
-    const {
-      reader, character, plot, rhythm, detail, emotion, antiAI
-    } = params;
+    const { reader, character, plot, antiAI } = params;
 
     if (reader?.coreAppeal) {
       prompt += `- 始终紧扣读者核心诉求：${reader.coreAppeal}\n`;
@@ -230,14 +262,13 @@ ${stage1Result}
       prompt += `- 开篇必须有冲突抓住读者\n`;
     }
     if (antiAI?.templateDeletePercent && antiAI.templateDeletePercent > 0) {
-      prompt += `- 删除模板化句式，删除"只见""就在这时""殊不知"这类AI常用开头\n`;
+      prompt += `- 删除模板化句式\n`;
     }
     if (antiAI?.unpredictableTurnPercent && antiAI.unpredictableTurnPercent > 20) {
-      prompt += `- 增加不可预测的转折，拒绝 predictable AI 写作\n`;
+      prompt += `- 增加不可预测的转折\n`;
     }
 
-    prompt += `
-请直接开始写正文，不要总结，不要说明，直接写故事内容。`;
+    prompt += `\n请直接开始写正文，不要总结，不要说明，直接写故事内容。`;
 
     return prompt;
   };
@@ -270,7 +301,7 @@ ${currentContent}
     }
 
     prompt += `
-保持原有故事走向不变，只优化文笔质感。请直接输出优化后的全文。`;
+保持原有故事走向不变，只优化文笔质感。Please directly output optimized full text.`;
 
     return prompt;
   };

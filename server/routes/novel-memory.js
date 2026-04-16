@@ -82,6 +82,102 @@ export default function (memoryManager) {
   });
 
   /**
+   * 添加章节记忆
+   * POST /api/memory/chapter
+   */
+  router.post('/chapter', async (req, res) => {
+    try {
+      if (!memoryManager || !memoryManager.isInitialized) {
+        return res.json({ success: false, error: '记忆管理系统未初始化' });
+      }
+
+      const { chapterId, title, content, summary } = req.body;
+      
+      if (!chapterId || !title || !content) {
+        return res.status(400).json({ success: false, error: '缺少必要参数' });
+      }
+
+      await memoryManager.addChapter(chapterId, title, content, summary || '');
+      res.json({ success: true });
+    } catch (error) {
+      console.error('[NovelMemory] Add chapter failed:', error);
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  /**
+   * 添加人物记忆
+   * POST /api/memory/character
+   */
+  router.post('/character', async (req, res) => {
+    try {
+      if (!memoryManager || !memoryManager.isInitialized) {
+        return res.json({ success: false, error: '记忆管理系统未初始化' });
+      }
+
+      const { id, name, description, currentStatus, events = [], content } = req.body;
+      
+      if (!id || !name || !description) {
+        return res.status(400).json({ success: false, error: '缺少必要参数' });
+      }
+
+      await memoryManager.addCharacter({ id, name, description, currentStatus, events, content });
+      res.json({ success: true });
+    } catch (error) {
+      console.error('[NovelMemory] Add character failed:', error);
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  /**
+   * 添加伏笔记忆
+   * POST /api/memory/foreshadowing
+   */
+  router.post('/foreshadowing', async (req, res) => {
+    try {
+      if (!memoryManager || !memoryManager.isInitialized) {
+        return res.json({ success: false, error: '记忆管理系统未初始化' });
+      }
+
+      const { id, title, content, chapter, relatedCharacters = [] } = req.body;
+      
+      if (!id || !title || !content) {
+        return res.status(400).json({ success: false, error: '缺少必要参数' });
+      }
+
+      await memoryManager.addForeshadowing({ id, title, content, chapter, relatedCharacters });
+      res.json({ success: true });
+    } catch (error) {
+      console.error('[NovelMemory] Add foreshadowing failed:', error);
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  /**
+   * 压缩相似记忆
+   * POST /api/memory/compress
+   */
+  router.post('/compress', async (req, res) => {
+    try {
+      if (!memoryManager || !memoryManager.isInitialized) {
+        return res.json({ success: false, error: '记忆管理系统未初始化' });
+      }
+
+      const { similarityThreshold = 0.85 } = req.body;
+      const mergedCount = await memoryManager.compressSimilarMemories(similarityThreshold);
+      
+      res.json({ 
+        success: true, 
+        mergedCount,
+        message: `成功合并 ${mergedCount} 条相似记忆`,
+      });
+    } catch (error) {
+      console.error('[NovelMemory] Compression failed:', error);
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  /**
    * 获取记忆统计信息
    * GET /api/memory/stats
    */
@@ -119,25 +215,41 @@ function formatMemoryForPrompt(memories) {
 
   // 按类型分组
   const characters = memories.filter(m => m.type === 'character');
-  const plots = memories.filter(m => m.type === 'plot');
+  const foreshadowings = memories.filter(m => m.type === 'foreshadowing');
+  const chapters = memories.filter(m => m.type === 'chapter');
 
   if (characters.length > 0) {
-    sections.push('【相关人物记忆】');
+    sections.push('### 相关人物设定\n');
     characters.forEach((char, idx) => {
-      sections.push(`${idx + 1}. ${char.metadata.name}: ${char.metadata.description}`);
+      sections.push(`${idx + 1}. **${char.metadata.name}**`);
+      sections.push(`   - 描述: ${char.metadata.description}`);
       if (char.metadata.currentStatus) {
-        sections.push(`   当前状态: ${char.metadata.currentStatus}`);
+        sections.push(`   - 当前状态: ${char.metadata.currentStatus}`);
       }
+      if (char.metadata.events && char.metadata.events.length > 0) {
+        sections.push(`   - 已发生事件: ${char.metadata.events.join('、')}`);
+      }
+      sections.push('');
     });
   }
 
-  if (plots.length > 0) {
-    sections.push('\n【相关情节记忆】');
-    plots.forEach((plot, idx) => {
-      sections.push(`${idx + 1}. 章节${plot.metadata.chapterNumber}: ${plot.metadata.summary}`);
-      if (plot.metadata.foreshadowing) {
-        sections.push(`   伏笔: ${plot.metadata.foreshadowing}`);
+  if (foreshadowings.length > 0) {
+    sections.push('### 相关伏笔\n');
+    foreshadowings.forEach((fwd, idx) => {
+      sections.push(`${idx + 1}. **${fwd.metadata.title}** (第${fwd.metadata.chapter}章)`);
+      sections.push(`   - ${fwd.content}`);
+      sections.push('');
+    });
+  }
+
+  if (chapters.length > 0) {
+    sections.push('### 之前相关章节\n');
+    chapters.forEach((chp, idx) => {
+      sections.push(`${idx + 1}. **${chp.metadata.title}**`);
+      if (chp.metadata.summary) {
+        sections.push(`   - 摘要: ${chp.metadata.summary}`);
       }
+      sections.push('');
     });
   }
 

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { FolderOpen, Search, ChevronLeft, ChevronRight } from "lucide-react";
+import { FolderOpen, Search, ChevronLeft, ChevronRight, Activity, CheckCircle2, XCircle, Clock, Square } from "lucide-react";
 import { useStore } from "../store/useStore";
 import { dbService } from "../services/db";
 import { Work, WorkStatus } from "../types";
@@ -11,13 +11,55 @@ const PAGE_SIZE = 20;
 
 export const WorksListPage: React.FC = () => {
   const navigate = useNavigate();
-  const { setCurrentWork, setParams, deleteWork } = useStore();
+  const { setCurrentWork, setParams, deleteWork, setGeneration } = useStore();
   const [works, setWorks] = useState<Work[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [filterStatus, setFilterStatus] = useState<WorkStatus | "all">("all");
   const [currentPage, setCurrentPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
+
+  // 🔥 计算任务统计信息
+  const taskStats = React.useMemo(() => {
+    const generating = works.filter(w => w.status === 'generating').length;
+    const completed = works.filter(w => w.status === 'completed').length;
+    const failed = works.filter(w => w.status === 'failed').length;
+    const total = works.length;
+    
+    return { generating, completed, failed, total };
+  }, [works]);
+
+  // 🔥 终止任务
+  const handleStopTask = async (workId: string) => {
+    if (!confirm('确定要终止这个生成任务吗？')) {
+      return;
+    }
+    
+    try {
+      console.log('[WorksList] Stopping task:', workId);
+      
+      // 更新作品状态为draft
+      await dbService.updateWork(workId, { status: 'draft' });
+      
+      // 如果是当前正在生成的任务，停止前端生成状态
+      const { currentWorkId } = useStore.getState();
+      if (currentWorkId === workId) {
+        setGeneration({ 
+          isGenerating: false, 
+          isGeneratingStage: null,
+          error: '任务已被用户终止'
+        });
+      }
+      
+      // 刷新列表
+      loadWorks(currentPage);
+      
+      console.log('✅ 任务已终止');
+    } catch (error) {
+      console.error('❌ 终止任务失败:', error);
+      alert('终止任务失败，请重试');
+    }
+  };
 
   // 从后端数据库加载作品列表（分页）
   const loadWorks = async (page: number) => {
@@ -39,6 +81,17 @@ export const WorksListPage: React.FC = () => {
   useEffect(() => {
     loadWorks(1);
   }, []);
+
+  // 🔥 如果有正在生成的任务，每5秒刷新一次状态
+  useEffect(() => {
+    if (taskStats.generating > 0) {
+      const interval = setInterval(() => {
+        loadWorks(currentPage);
+      }, 5000);
+      
+      return () => clearInterval(interval);
+    }
+  }, [taskStats.generating, currentPage]);
 
   // 处理页码变化
   const handlePageChange = (page: number) => {
@@ -107,6 +160,51 @@ export const WorksListPage: React.FC = () => {
         </Button>
       </div>
 
+      {/* 🔥 任务监控面板 */}
+      {taskStats.total > 0 && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+          <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs text-gray-500 dark:text-gray-400">总作品数</p>
+                <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{taskStats.total}</p>
+              </div>
+              <FolderOpen size={24} className="text-blue-500" />
+            </div>
+          </div>
+          
+          <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-blue-200 dark:border-blue-800 p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs text-blue-600 dark:text-blue-400">生成中</p>
+                <p className="text-2xl font-bold text-blue-600 dark:text-blue-400 mt-1">{taskStats.generating}</p>
+              </div>
+              <Activity size={24} className="text-blue-500 animate-pulse" />
+            </div>
+          </div>
+          
+          <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-green-200 dark:border-green-800 p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs text-green-600 dark:text-green-400">已完成</p>
+                <p className="text-2xl font-bold text-green-600 dark:text-green-400 mt-1">{taskStats.completed}</p>
+              </div>
+              <CheckCircle2 size={24} className="text-green-500" />
+            </div>
+          </div>
+          
+          <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-red-200 dark:border-red-800 p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs text-red-600 dark:text-red-400">失败</p>
+                <p className="text-2xl font-bold text-red-600 dark:text-red-400 mt-1">{taskStats.failed}</p>
+              </div>
+              <XCircle size={24} className="text-red-500" />
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 搜索筛选 */}
       <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg p-6 mb-6 border border-gray-200/50 dark:border-slate-700/50">
         <div className="space-y-4">
@@ -125,10 +223,10 @@ export const WorksListPage: React.FC = () => {
           </div>
 
           <div className="flex gap-2 flex-wrap">
-            {(["all", "drafting", "completed", "archived"] as const).map((status) => (
+            {(["all", "draft", "generating", "completed", "archived"] as const).map((status) => (
               <button
                 key={status}
-                onClick={() => setFilterStatus(status)}
+                onClick={() => setFilterStatus(status as any)}
                 className={`px-3 py-1.5 text-sm rounded-lg transition-all ${
                   filterStatus === status
                     ? "bg-primary text-white"
@@ -137,11 +235,13 @@ export const WorksListPage: React.FC = () => {
               >
                 {status === "all"
                   ? "全部"
-                  : status === "drafting"
-                    ? "创作中"
-                    : status === "completed"
-                      ? "已完成"
-                      : "已归档"}
+                  : status === "draft"
+                    ? "草稿"
+                    : status === "generating"
+                      ? "生成中"
+                      : status === "completed"
+                        ? "已完成"
+                        : "已归档"}
               </button>
             ))}
           </div>
@@ -169,6 +269,7 @@ export const WorksListPage: React.FC = () => {
                 work={work}
                 onSelect={() => handleSelectWork(work)}
                 onDelete={() => handleDeleteWork(work.id)}
+                onStopTask={() => handleStopTask(work.id)}
               />
             ))}
           </div>
@@ -235,3 +336,13 @@ export const WorksListPage: React.FC = () => {
 };
 
 export default WorksListPage;
+
+
+
+
+
+
+
+
+
+

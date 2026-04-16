@@ -3,7 +3,22 @@ import { ModelConfig } from '../types';
 export const getActiveModel = (stageConfig: any): ModelConfig => {
   if ('models' in stageConfig) {
     const active = stageConfig.models.find((m: any) => m.id === stageConfig.activeModelId);
-    return active || stageConfig.models[0];
+    const selectedModel = active || stageConfig.models[0];
+    
+    // 添加调试日志
+    console.log('🎯 getActiveModel - Stage配置:', {
+      activeModelId: stageConfig.activeModelId,
+      totalModels: stageConfig.models.length,
+      selectedModel: {
+        id: selectedModel.id,
+        name: selectedModel.name,
+        mode: selectedModel.mode,
+        apiUrl: selectedModel.apiUrl,
+        localUrl: selectedModel.localUrl,
+      }
+    });
+    
+    return selectedModel;
   }
   return stageConfig as ModelConfig;
 };
@@ -42,6 +57,18 @@ export const callModel = async (
   } else if (config.apiUrl) {
     // Ensure the API URL is absolute - if it starts with /, it's a local proxy path (Vite dev proxy)
     let apiUrl = config.apiUrl;
+    
+    // 开发环境下，将火山引擎的完整URL转换为代理路径，避免CORS问题
+    const isDev = import.meta.env.DEV;
+    if (isDev && apiUrl.includes('ark.cn-beijing.volces.com')) {
+      // 提取 /api/coding/v3 之后的路径
+      const pathMatch = apiUrl.match(/\/api\/coding\/v3.*/);
+      if (pathMatch) {
+        apiUrl = pathMatch[0];
+        console.log('🔄 开发模式：使用代理路径', apiUrl);
+      }
+    }
+    
     if (apiUrl.startsWith('/')) {
       // For local dev proxy, keep it as relative path so it works correctly
       // Don't convert to https://... because that breaks the proxy
@@ -90,5 +117,25 @@ export const callModel = async (
     return data.choices[0].message.content;
   } else {
     throw new Error('未配置模型地址');
+  }
+};
+
+// 🔥 包装callModel，优雅处理AbortError
+export const callModelSafe = async (
+  prompt: string,
+  config: ModelConfig,
+  signal: AbortSignal
+): Promise<string | null> => {
+  try {
+    return await callModel(prompt, config, signal);
+  } catch (error: any) {
+    // 如果是用户主动取消（跳转页面），静默处理
+    if (error.name === 'AbortError' || error.message === '生成已终止') {
+      console.log('[ModelCall] Request was aborted by user (page navigation)');
+      return null; // 返回null表示被取消
+    }
+    
+    // 其他错误继续抛出
+    throw error;
   }
 };

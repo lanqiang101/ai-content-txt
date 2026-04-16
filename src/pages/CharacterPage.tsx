@@ -2,10 +2,10 @@ import React, { useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { 
   ArrowLeft, Plus, Trash2, User, Loader2, Check, Sparkles,
-  Save, X, ChevronDown, ChevronRight
+  Save, X, ChevronDown, ChevronRight, AlertCircle
 } from "lucide-react";
 import { useStore } from "../store/useStore";
-import { useRandomGenerate } from "../hooks/useRandomGenerate";
+import { useRandomConfig } from "../hooks/useRandomConfig";
 import { Character } from "../types";
 import { Tooltip } from "../components/Tooltip";
 import { Button } from "../components/ui/Button";
@@ -16,10 +16,11 @@ export const CharacterPage: React.FC = () => {
   const workId = searchParams.get('workId');
   
   const { addCharacter, deleteCharacter, characters } = useStore();
-  const { generateCandidates, loading } = useRandomGenerate();
+  const { generateCandidates, loading, hasConfig } = useRandomConfig();
   
   const [isGenerating, setIsGenerating] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [formData, setFormData] = useState<Omit<Character, 'id' | 'workId' | 'createdAt' | 'updatedAt'>>({
     name: '',
     description: '',
@@ -101,14 +102,25 @@ export const CharacterPage: React.FC = () => {
     });
   };
 
-  const handleRandomGenerate = async () => {
+  const handleGenerateRandom = async () => {
     if (!workId) {
       alert('请先选择作品');
       return;
     }
 
+    if (!hasConfig) {
+      setError("未配置随机生成模型");
+      setTimeout(() => {
+        if (window.confirm("未配置随机生成模型\n\n是否前往系统配置？")) {
+          navigate("/config");
+        }
+      }, 100);
+      return;
+    }
+
     setIsGenerating(true);
     try {
+      setError(null);
       // 生成随机名称
       const names = await generateCandidates(
         '小说角色名称',
@@ -178,9 +190,10 @@ export const CharacterPage: React.FC = () => {
         }));
       }
       
-    } catch (error) {
-      console.error('Generate character failed:', error);
-      alert('生成失败: ' + (error as Error).message);
+    } catch (err) {
+      console.error('Random character generation failed:', err);
+      setError((err as Error).message);
+      setTimeout(() => setError(null), 3000);
     } finally {
       setIsGenerating(false);
     }
@@ -209,7 +222,14 @@ export const CharacterPage: React.FC = () => {
             {editingId ? '编辑角色' : '添加新角色'}
           </h2>
 
-          <div className="space-y-4">
+          {/* 错误提示 */}
+          {error && (
+            <div className="mb-4 px-4 py-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+                <p className="text-sm text-red-700 dark:text-red-300">{error}</p>
+              </div>
+            )}
+
+            <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 角色名称
@@ -306,15 +326,25 @@ export const CharacterPage: React.FC = () => {
                 {editingId ? '保存修改' : '添加角色'}
               </Button>
 
-              <Tooltip content="AI随机生成一个角色">
-                <Button
-                  variant="secondary"
-                  onClick={handleRandomGenerate}
-                  disabled={loading}
+              <Tooltip content={!hasConfig ? "未配置模型" : "AI随机生成一个角色"}>
+                <button
+                  onClick={hasConfig ? handleGenerateRandom : () => navigate("/config")}
+                  disabled={loading || !hasConfig}
+                  className={`inline-flex items-center justify-center font-medium rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-50 disabled:cursor-not-allowed px-4 py-2 text-base ${
+                    !hasConfig 
+                      ? "bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed" 
+                      : "bg-white dark:bg-slate-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-700"
+                  }`}
                 >
-                  {loading ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
-                  生成
-                </Button>
+                  {loading ? (
+                    <Loader2 size={16} className="animate-spin" />
+                  ) : !hasConfig ? (
+                    <AlertCircle size={16} />
+                  ) : (
+                    <Sparkles size={16} />
+                  )}
+                  {!hasConfig ? "未配置" : "生成"}
+                </button>
               </Tooltip>
 
               {editingId && (

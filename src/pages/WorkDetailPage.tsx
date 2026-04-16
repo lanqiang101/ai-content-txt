@@ -1,17 +1,56 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ChevronLeft, FileText, Copy, Download, Check } from "lucide-react";
+import { ChevronLeft, FileText, Copy, Download, Check, Plus } from "lucide-react";
 import { useStore } from "../store/useStore";
-import { Work } from "../types";
+import { Work, Chapter } from "../types";
 import { Button } from "../components/ui/Button";
+import { ChapterSidebar } from "../components/WorkDetail/ChapterSidebar";
+import { ChapterEditor } from "../components/WorkDetail/ChapterEditor";
+import { ContinuationDialog } from "../components/WorkDetail/ContinuationDialog";
+import { getWorkChapters, addChapter, updateChapter as updateChapterAPI } from "../services/db";
 
 export const WorkDetailPage: React.FC = () => {
   const { workId } = useParams<{ workId: string }>();
   const navigate = useNavigate();
   const { works, setCurrentWork, setParams } = useStore();
   const [copied, setCopied] = useState(false);
+  
+  // 章节管理状态
+  const [chapters, setChapters] = useState<Chapter[]>([]);
+  const [currentChapterId, setCurrentChapterId] = useState<string | null>(null);
+  const [showContinuationDialog, setShowContinuationDialog] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
   const work = works.find(w => w.id === workId);
+
+  // 加载章节列表
+  useEffect(() => {
+    if (workId) {
+      loadChapters();
+    }
+  }, [workId]);
+
+  const loadChapters = async () => {
+    if (!workId) return;
+    
+    setIsLoading(true);
+    try {
+      const chapterList = await getWorkChapters(workId);
+      setChapters(chapterList);
+      
+      // 默认选中第一章
+      if (chapterList.length > 0 && !currentChapterId) {
+        setCurrentChapterId(chapterList[0].id);
+      }
+    } catch (error) {
+      console.error("加载章节失败:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // 获取当前选中的章节
+  const currentChapter = chapters.find(c => c.id === currentChapterId) || null;
 
   if (!work) {
     return (
@@ -62,6 +101,56 @@ export const WorkDetailPage: React.FC = () => {
     URL.revokeObjectURL(url);
   };
 
+  // 处理章节保存
+  const handleSaveChapter = async (updatedChapter: Chapter) => {
+    setChapters(prev => 
+      prev.map(c => c.id === updatedChapter.id ? updatedChapter : c)
+    );
+  };
+
+  // 处理AI优化（TODO: 实现实际的AI优化逻辑）
+  const handleOptimizeChapter = async (chapterId: string, content: string): Promise<string> => {
+    // TODO: 调用AI优化API
+    console.log("优化章节:", chapterId);
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        // 模拟优化结果
+        resolve(content + "\n\n[AI优化后的内容将显示在这里]");
+      }, 2000);
+    });
+  };
+
+  // 处理续写
+  const handleContinuation = async (chapterCount: number) => {
+    if (!workId) return;
+    
+    try {
+      const lastChapter = chapters[chapters.length - 1];
+      const startNumber = lastChapter ? lastChapter.chapterNumber + 1 : 1;
+      
+      // 批量创建新章节
+      for (let i = 0; i < chapterCount; i++) {
+        const newChapter: Omit<Chapter, 'id'> = {
+          workId,
+          chapterNumber: startNumber + i,
+          title: `第${startNumber + i}章`,
+          content: "",
+          wordCount: 0,
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        };
+        
+        await addChapter(newChapter);
+      }
+      
+      // 重新加载章节列表
+      await loadChapters();
+    } catch (error) {
+      console.error("续写失败:", error);
+      alert("续写失败，请重试");
+    }
+  };
+
   const statusText = {
     drafting: "创作中",
     completed: "已完成",
@@ -77,161 +166,71 @@ export const WorkDetailPage: React.FC = () => {
   };
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-4xl">
-      {/* 顶部导航 */}
-      <div className="flex items-center justify-between mb-8">
+    <div className="h-screen flex flex-col bg-gray-50 dark:bg-slate-900">
+      {/* 顶部导航栏 */}
+      <div className="flex items-center justify-between px-6 py-4 bg-white dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700">
         <div className="flex items-center gap-3">
           <Button variant="secondary" onClick={() => navigate("/works")}>
             <ChevronLeft size={16} />
             返回
           </Button>
           <div>
-            <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-100">
+            <h1 className="text-xl font-bold text-gray-800 dark:text-gray-100">
               {work.title || "(无标题)"}
             </h1>
-            <p className="text-sm text-gray-500">
-              ID: {work.id.slice(0, 8)}
+            <p className="text-xs text-gray-500">
+              ID: {work.id.slice(0, 8)} • {statusText[work.status]}
             </p>
           </div>
         </div>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-        {/* 作品信息卡片 */}
-        <div className="lg:col-span-1">
-          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg p-6 border border-gray-200/50 dark:border-slate-700/50">
-            <h3 className="text-lg font-bold text-gray-800 dark:text-gray-100 mb-4">
-              作品信息
-            </h3>
-
-            <div className="space-y-4">
-              <div>
-                <div className="text-xs text-gray-500 mb-1">状态</div>
-                <span className={`inline-block px-2 py-1 rounded-full text-xs font-medium ${statusColor[work.status]}`}>
-                  {statusText[work.status]}
-                </span>
-              </div>
-
-              <div>
-                <div className="text-xs text-gray-500 mb-1">类型</div>
-                <div className="font-medium text-gray-800 dark:text-gray-100">
-                  {work.type === "article" ? "公众号文章" : "小说"}
-                </div>
-              </div>
-
-              <div>
-                <div className="text-xs text-gray-500 mb-1">主题</div>
-                <div className="font-medium text-gray-800 dark:text-gray-100 break-words">
-                  {work.topic || "-"}
-                </div>
-              </div>
-
-              <div>
-                <div className="text-xs text-gray-500 mb-1">关键词</div>
-                <div className="font-medium text-gray-800 dark:text-gray-100 break-words">
-                  {work.keywords || "-"}
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <div className="text-xs text-gray-500 mb-1">期望字数</div>
-                  <div className="font-medium text-gray-800 dark:text-gray-100">
-                    {work.expectedWordCount.toLocaleString()}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-xs text-gray-500 mb-1">实际字数</div>
-                  <div className="font-medium text-gray-800 dark:text-gray-100">
-                    {work.actualWordCount.toLocaleString()}
-                  </div>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <div className="text-xs text-gray-500 mb-1">创建时间</div>
-                  <div className="font-medium text-gray-800 dark:text-gray-100">
-                    {new Date(work.createdAt).toLocaleString()}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-xs text-gray-500 mb-1">更新时间</div>
-                  <div className="font-medium text-gray-800 dark:text-gray-100">
-                    {new Date(work.updatedAt).toLocaleString()}
-                  </div>
-                </div>
-              </div>
-
-              {work.generationParams && (
-                <div>
-                  <div className="text-xs text-gray-500 mb-1">创作参数</div>
-                  <details className="text-sm">
-                    <summary className="cursor-pointer text-gray-600 dark:text-gray-400 hover:text-primary">
-                      查看参数详情
-                    </summary>
-                    <div className="mt-2 p-3 bg-gray-50 dark:bg-slate-700/50 rounded-lg text-xs text-gray-600 dark:text-gray-400 whitespace-pre-wrap max-h-48 overflow-y-auto">
-                      {JSON.stringify(work.generationParams, null, 2)}
-                    </div>
-                  </details>
-                </div>
-              )}
-            </div>
-
-            <div className="mt-6 space-y-3">
-              <Button className="w-full" onClick={handleLoadToEditor}>
-                <FileText size={16} />
-                加载到编辑器
-              </Button>
-            </div>
-          </div>
-        </div>
-
-        {/* 内容预览 */}
-        <div className="lg:col-span-2">
-          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg border border-gray-200/50 dark:border-slate-700/50 overflow-hidden">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-slate-700">
-              <h3 className="text-lg font-bold text-gray-800 dark:text-gray-100">
-                内容预览
-              </h3>
-              {work.content && (
-                <div className="flex gap-2">
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={handleCopyContent}
-                  >
-                    {copied ? <Check size={16} /> : <Copy size={16} />}
-                    {copied ? "已复制" : "复制"}
-                  </Button>
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={handleDownloadContent}
-                  >
-                    <Download size={16} />
-                    导出
-                  </Button>
-                </div>
-              )}
-            </div>
-            <div className="p-6 max-h-[60vh] overflow-y-auto">
-              {work.content ? (
-                <div className="prose dark:prose-invert max-w-none">
-                  <pre className="whitespace-pre-wrap font-sans text-gray-700 dark:text-gray-300 leading-relaxed m-0 bg-transparent p-0">
-                    {work.content}
-                  </pre>
-                </div>
-              ) : (
-                <div className="text-center py-16 text-gray-500">
-                  <FileText size={48} className="mx-auto mb-3 opacity-30" />
-                  <p>暂无内容</p>
-                </div>
-              )}
-            </div>
-          </div>
+        
+        <div className="flex gap-2">
+          <Button variant="secondary" size="sm" onClick={() => setShowContinuationDialog(true)}>
+            <Plus size={16} />
+            续写
+          </Button>
+          <Button variant="secondary" size="sm" onClick={handleLoadToEditor}>
+            <FileText size={16} />
+            加载到编辑器
+          </Button>
         </div>
       </div>
+
+      {/* 主体内容区 */}
+      <div className="flex-1 flex overflow-hidden">
+        {/* 左侧章节列表 */}
+        <div className="w-64 flex-shrink-0">
+          <ChapterSidebar
+            chapters={chapters}
+            currentChapterId={currentChapterId}
+            onSelectChapter={setCurrentChapterId}
+          />
+        </div>
+
+        {/* 右侧编辑器 */}
+        <div className="flex-1 bg-white dark:bg-slate-800">
+          {isLoading ? (
+            <div className="flex items-center justify-center h-full">
+              <p className="text-gray-500">加载中...</p>
+            </div>
+          ) : (
+            <ChapterEditor
+              chapter={currentChapter}
+              workId={workId!}
+              onSave={handleSaveChapter}
+              onOptimize={handleOptimizeChapter}
+            />
+          )}
+        </div>
+      </div>
+
+      {/* 续写对话框 */}
+      <ContinuationDialog
+        isOpen={showContinuationDialog}
+        onClose={() => setShowContinuationDialog(false)}
+        onConfirm={handleContinuation}
+        currentChapterCount={chapters.length}
+      />
     </div>
   );
 };

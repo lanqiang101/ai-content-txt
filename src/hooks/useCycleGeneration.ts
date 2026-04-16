@@ -1,22 +1,106 @@
 import { useCallback } from 'react';
 import { useStore } from '../store/useStore';
-import { callModel, getActiveModel } from './useModelCall';
+import { callModelSafe, getActiveModel } from './useModelCall';
 import { usePromptBuilder } from './usePromptBuilder';
+import { useMemory } from './useMemory';
 import { CYCLE_CONFIG } from './constants';
 import { GenerationParams, CycleResult } from '../types';
+
+/**
+ * 内容完整性校验工具
+ */
+const validateContentIntegrity = (content: string): { isValid: boolean; issues: string[] } => {
+  const issues: string[] = [];
+
+  if (!content || content.length === 0) {
+    return { isValid: false, issues: ['内容为空'] };
+  }
+
+  // 1. 检查句子完整性（结尾是否有完整标点）
+  const trimmedEnd = content.trimEnd();
+  const validEndings = ['。', '！', '？', '…', '"', '”', '」', '』'];
+  const hasValidEnding = validEndings.some(ending => trimmedEnd.endsWith(ending));
+  
+  if (!hasValidEnding) {
+    issues.push('内容可能不完整：结尾缺少标点符号');
+  }
+
+  // 2. 检查引号是否成对
+  const doubleQuotes = (content.match(/"/g) || []).length;
+  const chineseDoubleQuotes = (content.match(/[""]/g) || []).length;
+  if (doubleQuotes % 2 !== 0 || chineseDoubleQuotes % 2 !== 0) {
+    issues.push('检测到未闭合的引号');
+  }
+
+  // 3. 检查括号是否成对
+  const openParens = (content.match(/\(/g) || []).length + (content.match(/【/g) || []).length;
+  const closeParens = (content.match(/\)/g) || []).length + (content.match(/】/g) || []).length;
+  if (openParens !== closeParens) {
+    issues.push(`检测到未闭合的括号（开:${openParens}, 闭:${closeParens}）`);
+  }
+
+  // 4. 检查最后一段是否完整（以换行符结束）
+  const lines = content.split('\n');
+  const lastLine = lines[lines.length - 1];
+  if (lastLine && lastLine.length > 50 && !trimmedEnd.endsWith('\n')) {
+    issues.push('最后一段可能不完整（超过50字符且无换行）');
+  }
+
+  // 5. 检查是否以连接词结尾（表示句子未完）
+  const conjunctions = ['而且', '但是', '然而', '因此', '所以', '并且', '或者', '因为'];
+  const endsWithConjunction = conjunctions.some(cj => trimmedEnd.endsWith(cj));
+  if (endsWithConjunction) {
+    issues.push('内容以连接词结尾，可能不完整');
+  }
+
+  return {
+    isValid: issues.length === 0,
+    issues,
+  };
+};
+
+/**
+ * 智能截断到完整句子
+ */
+const truncateToCompleteSentence = (content: string): string => {
+  const trimmedEnd = content.trimEnd();
+  
+  // 查找最后一个完整的句子结束符
+  const sentenceEndings = ['。', '！', '？', '…'];
+  let lastCompleteIndex = -1;
+  
+  for (const ending of sentenceEndings) {
+    const index = trimmedEnd.lastIndexOf(ending);
+    if (index > lastCompleteIndex) {
+      lastCompleteIndex = index;
+    }
+  }
+  
+  // 如果找到完整句子结束符，截断到这里
+  if (lastCompleteIndex > 0) {
+    return trimmedEnd.substring(0, lastCompleteIndex + 1);
+  }
+  
+  // 否则尝试在段落边界截断
+  const paragraphs = content.split('\n\n');
+  if (paragraphs.length > 1) {
+    return paragraphs.slice(0, -1).join('\n\n') + '\n\n';
+  }
+  
+  // 无法安全截断，返回原文
+  return content;
+};
 
 export const useCycleGeneration = () => {
   const { config, generation, setGeneration } = useStore();
   const { buildStage1Prompt, buildStage2Prompt, buildStage3Prompt } = usePromptBuilder();
+  const { retrieveMemory, addChapterMemory } = useMemory();
 
-  const startGeneration = useCallback(async (params: GenerationParams) => {
-    // 如果已经在生成，先停止之前的
-    if (generation.isGenerating) {
-      return;
-    }
-
-    const abortController = new AbortController();
-    const signal = abortController.signal;
+  const startGeneration = useCallback(async (params: GenerationParams, signal?: AbortSignal) => {
+    // 🔥 允许多任务并发，不再检查isGenerating
+    
+    // 🔥 如果没有传入signal，创建一个新的（向后兼容）
+    const abortSignal = signal || new AbortController().signal;
 
     // 重置生成状态
     setGeneration({
@@ -30,6 +114,7 @@ export const useCycleGeneration = () => {
       isGenerating: true,
       isGeneratingStage: null,
       error: null,
+      currentWorkId: undefined, // 🔥 先清空，创建作品后再设置
     });
 
     try {
@@ -47,7 +132,9 @@ export const useCycleGeneration = () => {
         expectedWordCount: params.wordCount,
         actualWordCount: 0,
         chapterCount: 1,
-        status: 'drafting', // 创作中
+        status: 'generating', // 创作中
+        chapters: [],
+        characters: [],
         createdAt: now,
         updatedAt: now,
         storyboardIds: [],
@@ -55,7 +142,10 @@ export const useCycleGeneration = () => {
         generationParams: params,
       });
 
-      // 设置当前作品ID
+      // 🔥 设置当前正在生成的作品ID
+      setGeneration({ currentWorkId: newWorkId });
+      
+      // 设置为当前作品，方便用户查看
       setCurrentWork(newWorkId);
 
       // Stage 1: 大纲搭建
@@ -68,19 +158,27 @@ export const useCycleGeneration = () => {
         isGeneratingStage: 1,
       });
       let stage1Result = '';
-      let currentContent = '';
+      let currentContent1 = '';
       for (let i = 0; i < CYCLE_CONFIG.stage1.cycles; i++) {
-        if (signal.aborted) break;
+        if (abortSignal.aborted) break;
 
         const cyclePrompt = i === 0
           ? stage1Prompt
-          : `${stage1Prompt}\n\n已经写到这里：\n${currentContent}\n\n请继续完善和补充。`;
+          : `${stage1Prompt}\n\n已经写到这里：\n${currentContent1}\n\n请继续完善和补充。`;
 
-        const cycleResult = await callModel(cyclePrompt, stage1Model, signal);
-        currentContent += cycleResult;
-        stage1Result = currentContent;
+        const cycleResult = await callModelSafe(cyclePrompt, stage1Model, abortSignal);
+        
+        // 🔥 如果返回null，说明被用户取消（跳转页面），立即退出
+        if (cycleResult === null) {
+          console.log('[Generation] Stage 1 aborted by user');
+          setGeneration({ isGenerating: false, isGeneratingStage: null });
+          return;
+        }
+        
+        currentContent1 += cycleResult;
+        stage1Result = currentContent1;
         setGeneration({
-          stage1Result: currentContent,
+          stage1Result: currentContent1,
           currentCycle: i + 1,
           completedCycles: i + 1,
           cycleResults: [
@@ -92,8 +190,14 @@ export const useCycleGeneration = () => {
 
       // Stage 2: 血肉填充
       const stage2Model = getActiveModel(config.stage2);
+      
+      // 🔥 集成记忆检索：在生成前检索相关记忆
+      const memoryQuery = `${params.topic} ${params.title || ''} ${params.keywords}`;
+      const relatedMemory = await retrieveMemory(memoryQuery, 5);
+      
       const currentWordCount = 0; // 第一轮从头开始
-      const stage2Prompt = buildStage2Prompt(stage1Result, params, currentWordCount);
+      const targetWords = params.wordCount; // 总目标字数
+      const stage2Prompt = buildStage2Prompt(stage1Result, params, currentWordCount, relatedMemory);
 
       setGeneration({
         currentStage: 2,
@@ -101,18 +205,35 @@ export const useCycleGeneration = () => {
         isGeneratingStage: 2,
       });
 
-      let currentContentStage2 = '';
+      let currentContent2 = '';
+      let stage2Result = '';
+      let totalGeneratedWords = 0;
+      
       for (let i = 0; i < CYCLE_CONFIG.stage2.cycles; i++) {
-        if (signal.aborted) break;
+        if (abortSignal.aborted) break;
+
+        // 🔥 动态计算剩余字数目标
+        const remainingCycles = CYCLE_CONFIG.stage2.cycles - i;
+        const remainingTargetWords = targetWords - totalGeneratedWords;
+        const dynamicWordsPerCycle = Math.ceil(remainingTargetWords / remainingCycles);
 
         const cyclePrompt = i === 0
           ? stage2Prompt
-          : `${stage2Prompt}\n\n已经写到这里：\n${currentContentStage2}\n\n请继续往下写。`;
+          : `${stage2Prompt}\n\n已经写到这里：\n${currentContent2}\n\n请继续完善和补充。`;
 
-        const cycleResult = await callModel(cyclePrompt, stage2Model, signal);
-        currentContentStage2 += cycleResult;
+        const cycleResult = await callModelSafe(cyclePrompt, stage2Model, abortSignal);
+        
+        // 🔥 如果返回null，说明被用户取消（跳转页面），立即退出
+        if (cycleResult === null) {
+          console.log('[Generation] Stage 2 aborted by user');
+          setGeneration({ isGenerating: false, isGeneratingStage: null });
+          return;
+        }
+        
+        currentContent2 += cycleResult;
+        stage2Result = currentContent2;
         setGeneration({
-          stage2Result: currentContentStage2,
+          stage2Result: currentContent2,
           currentCycle: i + 1,
           completedCycles: CYCLE_CONFIG.stage1.cycles + (i + 1),
           cycleResults: [
@@ -124,7 +245,7 @@ export const useCycleGeneration = () => {
 
       // Stage 3: 去AI化打磨
       const stage3Model = getActiveModel(config.stage3);
-      const stage3Prompt = buildStage3Prompt(currentContentStage2, params);
+      const stage3Prompt = buildStage3Prompt(currentContent2, params);
 
       setGeneration({
         currentStage: 3,
@@ -133,19 +254,27 @@ export const useCycleGeneration = () => {
       });
 
       let stage3Result = '';
-      let currentContentStage3 = currentContentStage2;
+      let currentContent3 = currentContent2;
       for (let i = 0; i < CYCLE_CONFIG.stage3.cycles; i++) {
-        if (signal.aborted) break;
+        if (abortSignal.aborted) break;
 
         const cyclePrompt = i === 0
           ? stage3Prompt
-          : `${stage3Prompt}\n\n当前版本：\n${currentContentStage3}\n\n请继续打磨优化。`;
+          : `${stage3Prompt}\n\n已经写到这里：\n${currentContent3}\n\n请继续优化。`;
 
-        const cycleResult = await callModel(cyclePrompt, stage3Model, signal);
-        currentContentStage3 = cycleResult;
-        stage3Result = currentContentStage3;
+        const cycleResult = await callModelSafe(cyclePrompt, stage3Model, abortSignal);
+        
+        // 🔥 如果返回null，说明被用户取消（跳转页面），立即退出
+        if (cycleResult === null) {
+          console.log('[Generation] Stage 3 aborted by user');
+          setGeneration({ isGenerating: false, isGeneratingStage: null });
+          return;
+        }
+        
+        currentContent3 += cycleResult;
+        stage3Result = currentContent3;
         setGeneration({
-          stage3Result: currentContentStage3,
+          stage3Result: currentContent3,
           currentCycle: i + 1,
           completedCycles: CYCLE_CONFIG.stage1.cycles + CYCLE_CONFIG.stage2.cycles + (i + 1),
           cycleResults: [
@@ -153,6 +282,30 @@ export const useCycleGeneration = () => {
             { stage: 3, cycle: i + 1, result: cycleResult, createdAt: Date.now() } as CycleResult,
           ],
         });
+      }
+
+      // 🔥 内容完整性校验与修复
+      console.log('[Validation] Checking content integrity...');
+      const validation = validateContentIntegrity(stage3Result);
+      
+      if (!validation.isValid) {
+        console.warn('[Validation] Content integrity issues detected:', validation.issues);
+        
+        // 尝试自动修复：截断到完整句子
+        const fixedContent = truncateToCompleteSentence(stage3Result);
+        const wordDiff = stage3Result.length - fixedContent.length;
+        
+        if (wordDiff > 0) {
+          console.log(`[Validation] Auto-truncated ${wordDiff} characters to ensure completeness`);
+          stage3Result = fixedContent;
+        }
+        
+        // 如果仍有问题，记录警告
+        if (validation.issues.length > 0) {
+          console.warn('[Validation] Remaining issues after auto-fix:', validation.issues);
+        }
+      } else {
+        console.log('[Validation] ✅ Content integrity check passed');
       }
 
       setGeneration({
@@ -174,6 +327,14 @@ export const useCycleGeneration = () => {
           content: stage3Result,
           updatedAt: completedAt,
         });
+        
+        // 🔥 集成记忆存储：将生成的章节添加到记忆系统
+        const chapterId = `chp_${currentWorkId}_${Date.now()}`;
+        const chapterTitle = params.title || `${params.topic} - 完整章节`;
+        const summary = stage1Result.substring(0, 200) + '...'; // 使用大纲作为摘要
+        
+        await addChapterMemory(chapterId, chapterTitle, stage3Result, summary);
+        console.log('[Memory] Chapter memory saved');
       }
 
     } catch (error) {
@@ -185,7 +346,7 @@ export const useCycleGeneration = () => {
         });
       }
     }
-  }, [config, generation, setGeneration, buildStage1Prompt, buildStage2Prompt, buildStage3Prompt]);
+  }, [config, generation, setGeneration, buildStage1Prompt, buildStage2Prompt, buildStage3Prompt, retrieveMemory, addChapterMemory]);
 
   const stopGeneration = useCallback(() => {
     // 这里需要保留abortController引用，实际在主hook处理
