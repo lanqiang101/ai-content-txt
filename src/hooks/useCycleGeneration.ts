@@ -96,35 +96,36 @@ export const useCycleGeneration = () => {
   const { buildStage1Prompt, buildStage2Prompt, buildStage3Prompt } = usePromptBuilder();
   const { retrieveMemory, addChapterMemory } = useMemory();
 
-  const startGeneration = useCallback(async (params: GenerationParams, signal?: AbortSignal) => {
-    // 🔥 允许多任务并发，不再检查isGenerating
-    
-    // 🔥 如果没有传入signal，创建一个新的（向后兼容）
-    const abortSignal = signal || new AbortController().signal;
+  const startGeneration = useCallback(async (params: GenerationParams) => {
+    if (generation.isGenerating) return;
 
     // 重置生成状态
     setGeneration({
-      currentStage: 0,
-      currentCycle: 0,
-      completedCycles: 0,
       stage1Result: '',
       stage2Result: '',
       stage3Result: '',
       cycleResults: [],
-      isGenerating: true,
-      isGeneratingStage: null,
       error: null,
-      currentWorkId: undefined, // 🔥 先清空，创建作品后再设置
+      isGenerating: true,
+      currentStage: 0,
+      currentCycle: 0,
+      completedCycles: 0,
     });
+
+    // 创建 AbortController 用于取消请求
+    const abortController = new AbortController();
+    const abortSignal = abortController.signal;
+    
+    // 🔥 保存引用以便外部调用 stopGeneration 时终止（通过闭包，不需要保存到state）
 
     try {
       // 开始生成时就创建作品添加到作品管理，状态为创作中
       const { addWork, setCurrentWork } = useStore.getState();
       const now = Date.now();
-      const newWorkId = `work-${now}`;
+      const currentWorkId = `work-${now}`; // 🔥 提前定义 currentWorkId
 
       addWork({
-        id: newWorkId,
+        id: currentWorkId,
         title: params.title || params.topic || "未命名作品",
         topic: params.topic,
         keywords: params.keywords,
@@ -143,10 +144,10 @@ export const useCycleGeneration = () => {
       });
 
       // 🔥 设置当前正在生成的作品ID
-      setGeneration({ currentWorkId: newWorkId });
+      setGeneration({ currentWorkId });
       
       // 设置为当前作品，方便用户查看
-      setCurrentWork(newWorkId);
+      setCurrentWork(currentWorkId);
 
       // Stage 1: 大纲搭建
       const stage1Model = getActiveModel(config.stage1);
@@ -188,16 +189,36 @@ export const useCycleGeneration = () => {
         });
       }
 
+      // 🔥 Stage 1 完成：添加大纲和人物记忆
+      if (currentWorkId && stage1Result) {
+        console.log('[Memory] Adding outline memory after Stage 1...');
+        
+        // 1. 添加大纲记忆
+        const outlineId = `outline_${currentWorkId}`;
+        await addChapterMemory(outlineId, `${params.title || params.topic} - 故事大纲`, stage1Result, '作品整体大纲');
+        
+        // 2. 尝试从大纲中提取人物信息并添加人物记忆（简化版）
+        // TODO: 未来可以使用AI提取人物列表，这里先添加一个总的人物设定记忆
+        if (params.character?.coreFlaw || params.character?.motivation) {
+          const characterInfo = [
+            params.character.coreFlaw ? `主角缺陷：${params.character.coreFlaw}` : '',
+            params.character.motivation ? `主角动机：${params.character.motivation}` : '',
+            params.character.habits ? `主角习惯：${params.character.habits}` : '',
+          ].filter(Boolean).join('\n');
+          
+          if (characterInfo) {
+            const charMemId = `char_${currentWorkId}`;
+            await addChapterMemory(charMemId, '主要人物设定', characterInfo, '主角核心设定');
+          }
+        }
+        
+        console.log('[Memory] ✅ Stage 1 memories added');
+      }
+
       // Stage 2: 血肉填充
       const stage2Model = getActiveModel(config.stage2);
       
-      // 🔥 集成记忆检索：在生成前检索相关记忆
-      const memoryQuery = `${params.topic} ${params.title || ''} ${params.keywords}`;
-      const relatedMemory = await retrieveMemory(memoryQuery, 5);
-      
-      const currentWordCount = 0; // 第一轮从头开始
       const targetWords = params.wordCount; // 总目标字数
-      const stage2Prompt = buildStage2Prompt(stage1Result, params, currentWordCount, relatedMemory);
 
       setGeneration({
         currentStage: 2,
@@ -217,9 +238,28 @@ export const useCycleGeneration = () => {
         const remainingTargetWords = targetWords - totalGeneratedWords;
         const dynamicWordsPerCycle = Math.ceil(remainingTargetWords / remainingCycles);
 
+        console.log(`[Generation] Stage 2 Cycle ${i + 1}/${CYCLE_CONFIG.stage2.cycles}:`);
+        console.log(`  - 本轮目标: ${dynamicWordsPerCycle} 字`);
+        console.log(`  - 已生成: ${totalGeneratedWords} 字`);
+        console.log(`  - 剩余目标: ${remainingTargetWords} 字`);
+
+        // 🔥 每轮生成前都检索相关记忆（基于已生成的内容）
+        let relatedMemory = '';
+        if (currentContent2.length > 100) {
+          // 使用已生成内容的最后500字作为查询上下文
+          const recentContext = currentContent2.slice(-500);
+          const memoryQuery = `${params.topic} ${recentContext}`;
+          relatedMemory = await retrieveMemory(memoryQuery, 5);
+          console.log(`[Memory] Retrieved ${relatedMemory ? 'relevant' : 'no'} memories for cycle ${i + 1}`);
+        } else {
+          // 第一轮使用大纲和主题
+          const memoryQuery = `${params.topic} ${params.title || ''} ${stage1Result.substring(0, 300)}`;
+          relatedMemory = await retrieveMemory(memoryQuery, 5);
+        }
+
         const cyclePrompt = i === 0
-          ? stage2Prompt
-          : `${stage2Prompt}\n\n已经写到这里：\n${currentContent2}\n\n请继续完善和补充。`;
+          ? buildStage2Prompt(stage1Result, params, totalGeneratedWords, relatedMemory)
+          : `${buildStage2Prompt(stage1Result, params, totalGeneratedWords, relatedMemory)}\n\n已经写到这里：\n${currentContent2}\n\n请继续完善和补充，确保达到字数要求。`;
 
         const cycleResult = await callModelSafe(cyclePrompt, stage2Model, abortSignal);
         
@@ -230,8 +270,63 @@ export const useCycleGeneration = () => {
           return;
         }
         
+        // 🔥 检查实际生成的字数
+        const actualWords = cycleResult.length;
+        const minAcceptableWords = Math.floor(dynamicWordsPerCycle * 0.7); // 最低接受70%
+        
+        console.log(`  - 实际生成: ${actualWords} 字 (${(actualWords/dynamicWordsPerCycle*100).toFixed(1)}%)`);
+        
+        // 🔥 如果字数严重不足，触发自动续写
+        if (actualWords < minAcceptableWords && i < CYCLE_CONFIG.stage2.cycles - 1) {
+          console.warn(`[Generation] ⚠️ 字数严重不足 (${actualWords}/${minAcceptableWords})，触发自动续写...`);
+          
+          const continuePrompt = `【紧急任务】上文内容字数严重不足，请继续往下写！
+
+上文内容：
+${cycleResult}
+
+还需要至少再写 ${dynamicWordsPerCycle - actualWords} 字才能达到要求。
+请直接继续写下去，不要重复上文内容，从新的情节开始。`;
+
+          const continueResult = await callModelSafe(continuePrompt, stage2Model, abortSignal);
+          
+          if (continueResult !== null) {
+            const combinedResult = cycleResult + '\n\n' + continueResult;
+            console.log(`[Generation] ✅ 续写成功，合并后字数: ${combinedResult.length}`);
+            currentContent2 += combinedResult;
+            totalGeneratedWords += combinedResult.length;
+            
+            setGeneration({
+              stage2Result: currentContent2,
+              currentCycle: i + 1,
+              completedCycles: CYCLE_CONFIG.stage1.cycles + (i + 1),
+              cycleResults: [
+                ...generation.cycleResults,
+                { stage: 2, cycle: i + 1, result: combinedResult, createdAt: Date.now() } as CycleResult,
+              ],
+            });
+            continue;
+          }
+        }
+        
         currentContent2 += cycleResult;
         stage2Result = currentContent2;
+        totalGeneratedWords += actualWords;
+        
+        console.log(`  - 累计字数: ${totalGeneratedWords}/${targetWords} (${(totalGeneratedWords/targetWords*100).toFixed(1)}%)`);
+        
+        // 🔥 每轮生成后添加分段记忆（用于后续轮次检索）
+        if (currentWorkId && cycleResult.length > 200) {
+          const segmentId = `seg_${currentWorkId}_s2_c${i + 1}`;
+          const segmentTitle = `${params.title || params.topic} - 第${i + 1}段`;
+          const segmentSummary = cycleResult.substring(0, 150) + '...';
+          
+          // 异步添加，不阻塞生成流程
+          addChapterMemory(segmentId, segmentTitle, cycleResult, segmentSummary).catch(err => {
+            console.warn('[Memory] Failed to add segment memory:', err);
+          });
+        }
+        
         setGeneration({
           stage2Result: currentContent2,
           currentCycle: i + 1,
@@ -243,9 +338,22 @@ export const useCycleGeneration = () => {
         });
       }
 
+      // 🔥 Stage 2 完成：添加完整正文记忆
+      if (currentWorkId && stage2Result) {
+        console.log('[Memory] Adding Stage 2 complete content memory...');
+        const stage2MemId = `stage2_${currentWorkId}`;
+        await addChapterMemory(stage2MemId, `${params.title || params.topic} - 完整正文(初稿)`, stage2Result, 'Stage 2 生成的完整初稿');
+        console.log('[Memory] ✅ Stage 2 memory added');
+      }
+
       // Stage 3: 去AI化打磨
       const stage3Model = getActiveModel(config.stage3);
-      const stage3Prompt = buildStage3Prompt(currentContent2, params);
+      
+      // 🔥 润色前检索原稿记忆，确保不改变核心情节
+      const stage3MemoryQuery = `${params.topic} ${stage2Result.substring(0, 500)}`;
+      const stage3RelatedMemory = await retrieveMemory(stage3MemoryQuery, 3);
+      
+      const stage3Prompt = buildStage3Prompt(currentContent2, params, stage3RelatedMemory);
 
       setGeneration({
         currentStage: 3,
@@ -316,7 +424,7 @@ export const useCycleGeneration = () => {
       });
 
       // 创作完成，更新作品状态为已完成，并更新内容
-      const { updateWork, currentWorkId } = useStore.getState();
+      const { updateWork } = useStore.getState();
       const wordCount = stage3Result.length;
       const completedAt = Date.now();
 
@@ -328,13 +436,22 @@ export const useCycleGeneration = () => {
           updatedAt: completedAt,
         });
         
-        // 🔥 集成记忆存储：将生成的章节添加到记忆系统
+        // 🔥 集成记忆存储：将最终成品添加到记忆系统
         const chapterId = `chp_${currentWorkId}_${Date.now()}`;
         const chapterTitle = params.title || `${params.topic} - 完整章节`;
         const summary = stage1Result.substring(0, 200) + '...'; // 使用大纲作为摘要
         
         await addChapterMemory(chapterId, chapterTitle, stage3Result, summary);
-        console.log('[Memory] Chapter memory saved');
+        console.log('[Memory] ✅ Final chapter memory saved');
+        
+        // 🔥 更新 Stage 2 的记忆为最终版本（标记为已润色）
+        try {
+          const stage2MemId = `stage2_${currentWorkId}`;
+          await addChapterMemory(stage2MemId, `${params.title || params.topic} - 完整正文(已润色)`, stage3Result, 'Stage 3 润色后的最终版本');
+          console.log('[Memory] ✅ Updated Stage 2 memory to final version');
+        } catch (err) {
+          console.warn('[Memory] Failed to update Stage 2 memory:', err);
+        }
       }
 
     } catch (error) {

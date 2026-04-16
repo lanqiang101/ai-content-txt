@@ -357,8 +357,17 @@ export default function (db) {
       const configs = db.prepare('SELECT * FROM app_config').all();
       const result = {};
       
-      // 存储是 stage1_model_id，读取时需要映射回 stage1 给前端表单绑定
-      const stageKeys = ['stage1_model_id', 'stage2_model_id', 'stage3_model_id', 'random_model_id', 'storyboard_model_id'];
+      // 🔥 存储是 xxx_model_id，读取时需要映射回短名给前端表单绑定
+      const stageKeys = [
+        'stage1_model_id', 
+        'stage2_model_id', 
+        'stage3_model_id', 
+        'random_model_id', 
+        'storyboard_model_id',
+        'chapter_continuation_model_id',  // 🔥 新增：章节续写
+        'chapter_optimization_model_id',  // 🔥 新增：章节优化
+        'popular_topics_model_id'         // 🔥 新增：热门主题
+      ];
       
       configs.forEach(row => {
         if (row.value === null) {
@@ -368,10 +377,17 @@ export default function (db) {
         }
       });
       
-      // 把 stage1_model_id 的值映射回 stage1 给前端绑定
+      // 🔥 蛇形命名转驼峰命名的工具函数
+      const snakeToCamel = (str) => {
+        return str.replace(/_([a-z])/g, (match, letter) => letter.toUpperCase());
+      };
+      
+      // 🔥 把 xxx_model_id 的值映射回驼峰短名给前端绑定
       stageKeys.forEach(dbKey => {
         if (result[dbKey] !== undefined) {
-          const frontKey = dbKey.replace('_model_id', '');
+          // chapter_continuation_model_id → chapterContinuation
+          const shortKey = dbKey.replace('_model_id', '');
+          const frontKey = snakeToCamel(shortKey);
           result[frontKey] = result[dbKey];
         }
       });
@@ -386,17 +402,31 @@ export default function (db) {
       const config = req.body.config || req.body;
       const now = Date.now();
       
-      console.log('Saving system config:', Object.key )     // 需要把短名存储为 {stage1_model_id: modelId, stage2_model_id: modelId, ...}
-      // 只存储转换后的 xxx_model_id 到数据库
-      const stageShortKeys = ['stage1', 'stage2', 'stage3', 'random', 'storyboard'];
+      console.log('Saving system config:', Object.keys(config));
+      
+      // 🔥 前端发送的包含 {stage1: modelId, stage2: modelId, chapterContinuation: modelId, ...}
+      // 需要把短名存储为 {stage1_model_id: modelId, chapter_continuation_model_id: modelId, ...}
+      // 驼峰转蛇形命名映射表
+      const camelToSnakeMap = {
+        'stage1': 'stage1',
+        'stage2': 'stage2',
+        'stage3': 'stage3',
+        'random': 'random',
+        'storyboard': 'storyboard',
+        'chapterContinuation': 'chapter_continuation',  // 🔥 新增：章节续写
+        'chapterOptimization': 'chapter_optimization',  // 🔥 新增：章节优化
+        'popularTopics': 'popular_topics'               // 🔥 新增：热门主题
+      };
       
       // 批量保存所有配置项
       for (const [key, value] of Object.entries(config)) {
         let dbKey = key;
-        // 如果是短名如 stage1，转换为 stage1_model_id 存储
-        if (stageShortKeys.includes(key)) {
-          dbKey = key + '_model_id';
+        
+        // 如果是短名（驼峰），转换为蛇形命名 + _model_id 存储
+        if (camelToSnakeMap[key]) {
+          dbKey = `${camelToSnakeMap[key]}_model_id`;
         }
+        
         const stmt = db.prepare('INSERT OR REPLACE INTO app_config (key, value, updated_at) VALUES (?, ?, ?)');
         // null值直接存储为SQL null，其他值JSON序列化
         const storedValue = value === null ? null : JSON.stringify(value);

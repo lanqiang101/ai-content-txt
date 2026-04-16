@@ -90,6 +90,7 @@ const stageDefinitions = [
 
 export const ConfigPage: React.FC = () => {
   const navigate = useNavigate();
+  const { loadConfigFromDB } = useStore();
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -122,14 +123,14 @@ export const ConfigPage: React.FC = () => {
         if (systemConfig) {
           console.log("✅ 加载了系统配置", systemConfig);
           setLocalConfig({
-            stage1: systemConfig.stage1_model_id || null,
-            stage2: systemConfig.stage2_model_id || null,
-            stage3: systemConfig.stage3_model_id || null,
-            random: systemConfig.random_model_id || null,
-            storyboard: systemConfig.storyboard_model_id || null,
-            chapterContinuation: systemConfig.chapter_continuation_model_id || null,
-            chapterOptimization: systemConfig.chapter_optimization_model_id || null,
-            popularTopics: systemConfig.popular_topics_model_id || null,
+            stage1: systemConfig.stage1 || null,
+            stage2: systemConfig.stage2 || null,
+            stage3: systemConfig.stage3 || null,
+            random: systemConfig.random || null,
+            storyboard: systemConfig.storyboard || null,
+            chapterContinuation: systemConfig.chapterContinuation || null,
+            chapterOptimization: systemConfig.chapterOptimization || null,
+            popularTopics: systemConfig.popularTopics || null,
           });
         }
       } catch (err) {
@@ -148,7 +149,12 @@ export const ConfigPage: React.FC = () => {
     try {
       setSaving(true);
       await dbService.saveSystemConfig(config);
-      console.log("✅ 系统配置已保存");
+      console.log("✅ 系统配置已保存到数据库");
+      
+      // 🔥 关键修复：保存后立即从数据库重新加载配置到 Zustand store
+      await loadConfigFromDB();
+      console.log("✅ 已从数据库刷新配置到前端状态");
+      
       alert("配置已保存成功！");
     } catch (err) {
       setError((err as Error).message);

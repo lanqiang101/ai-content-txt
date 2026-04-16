@@ -284,6 +284,15 @@ async function initMemoryManager() {
   }
 }
 
+// Mount other routes (不需要memoryManager的路由可以立即挂载)
+app.use('/api', worksRouter(db));
+app.use('/api', charactersRouter(db));
+app.use('/api', storyboardsRouter(db));
+app.use('/api', outlinesRouter(db));
+app.use('/api', historyRouter(db));
+app.use('/api', configRouter(db));
+app.use('/api', popularTopicsRouter(db));
+
 // ========== 启动服务器 ==========
 app.listen(PORT, async () => {
   console.log(`🚀 后端服务启动成功: http://localhost:${PORT}`);
@@ -297,15 +306,6 @@ app.listen(PORT, async () => {
   
   console.log('✅ 所有路由已注册');
 });
-
-// Mount other routes (不需要memoryManager的路由可以立即挂载)
-app.use('/api', worksRouter(db));
-app.use('/api', charactersRouter(db));
-app.use('/api', storyboardsRouter(db));
-app.use('/api', outlinesRouter(db));
-app.use('/api', historyRouter(db));
-app.use('/api', configRouter(db));
-app.use('/api', popularTopicsRouter(db));
 
 // 🔥 全局错误处理中间件 - 优雅处理取消的请求（必须在所有路由之后）
 app.use((err, req, res, next) => {

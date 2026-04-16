@@ -435,8 +435,14 @@ export const useStore = create<AppState>()(
             
             // 从系统配置中读取每个stage的activeModelId，如果没有则使用第一个模型
             const getActiveModelId = (stageKey: string) => {
-              const configKey = `${stageKey}_model_id`;
-              const savedId = systemConfig?.[configKey];
+              // 🔥 尝试两种键名格式：
+              // 1. popularTopics_model_id (驼峰+后缀) - 用于 stage1, stage2, stage3 等
+              // 2. popularTopics (直接短名) - 用于后端已映射的字段
+              const configKey1 = `${stageKey}_model_id`;
+              const configKey2 = stageKey;
+              
+              const savedId = systemConfig?.[configKey1] || systemConfig?.[configKey2];
+              
               // 如果保存的ID存在且在当前模型列表中，则使用它；否则使用第一个模型
               if (savedId && modelList.find(m => m.id === String(savedId))) {
                 return String(savedId);
@@ -579,17 +585,19 @@ export const useStore = create<AppState>()(
     },
     {
       name: 'ai-content-txt-config',
-      // 🔥 只持久化配置数据，不持久化运行时状态
+      // 🔥 只持久化用户偏好和表单默认值，不持久化从数据库加载的动态配置
       partialize: (state) => ({
-        config: state.config,
         params: state.params,
         singleParams: state.singleParams,
         batchParams: state.batchParams,
         history: state.history,
-        // 不持久化: generation, works, currentWorkId, bookOutlines, timerAutomation
+        darkMode: state.darkMode,
+        // 不持久化: config (从数据库加载), generation (运行时状态), works (数据库管理), currentWorkId, bookOutlines, timerAutomation
       }),
     }
   )
 );
+
+
 
 

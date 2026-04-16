@@ -23,11 +23,64 @@ export const getActiveModel = (stageConfig: any): ModelConfig => {
   return stageConfig as ModelConfig;
 };
 
+/**
+ * 清洗模型响应，移除无关内容和乱码
+ */
+const cleanModelResponse = (response: string): string => {
+  if (!response) return response;
+  
+  let cleaned = response;
+  
+  // 1. 检测并移除明显的非中文乱码（如果包含大量英文技术术语且与小说创作无关）
+  const hasGarbledContent = /Radio\s+Amateur|License.*Exam|QRP\s+Operations|ARRL/i.test(cleaned);
+  if (hasGarbledContent) {
+    console.warn('[ModelCall] ⚠️ Detected garbled/irrelevant content in response, attempting cleanup...');
+    
+    // 尝试找到第一个中文字符的位置，从那里开始截取
+    const chineseCharMatch = cleaned.match(/[\u4e00-\u9fff]/);
+    if (chineseCharMatch) {
+      const startIndex = chineseCharMatch.index!;
+      // 向前查找，找到段落或句子边界
+      const searchBack = Math.max(0, startIndex - 200);
+      const beforeText = cleaned.substring(searchBack, startIndex);
+      
+      // 查找合适的起始点（换行后或标点符号后）
+      const boundaryMatch = beforeText.match(/[\n。！？\n\r][\s\n\r]*$/);
+      if (boundaryMatch) {
+        cleaned = cleaned.substring(startIndex - (beforeText.length - boundaryMatch.index!));
+      } else {
+        cleaned = cleaned.substring(startIndex);
+      }
+      
+      console.log('[ModelCall] ✅ Cleaned garbled content, kept from first Chinese character');
+    }
+  }
+  
+  // 2. 移除常见的AI开场白和结束语
+  const prefixesToRemove = [
+    /^好的，?我来帮你创作[^\n]*\n*/i,
+    /^好的，?以下是[^\n]*\n*/i,
+    /^当然可以[^\n]*\n*/i,
+    /^没问题[^\n]*\n*/i,
+  ];
+  
+  for (const prefix of prefixesToRemove) {
+    cleaned = cleaned.replace(prefix, '');
+  }
+  
+  // 3. 去除首尾空白
+  cleaned = cleaned.trim();
+  
+  return cleaned;
+};
+
 export const callModel = async (
   prompt: string,
   config: ModelConfig,
   signal: AbortSignal
 ): Promise<string> => {
+  let rawResponse = '';
+  
   if (config.mode === 'local' && config.localUrl) {
     // 确保 localUrl 没有尾随斜杠，然后拼接正确路径
     const baseUrl = config.localUrl.replace(/\/$/, '');
@@ -41,6 +94,10 @@ export const callModel = async (
         model: config.modelName,
         prompt,
         stream: false,
+        options: {
+          temperature: 0.7,
+          num_predict: 4096,
+        }
       }),
     });
 
@@ -53,7 +110,7 @@ export const callModel = async (
     }
 
     const data = await response.json();
-    return data.response;
+    rawResponse = data.response || '';
   } else if (config.apiUrl) {
     // Ensure the API URL is absolute - if it starts with /, it's a local proxy path (Vite dev proxy)
     let apiUrl = config.apiUrl;
@@ -114,10 +171,21 @@ export const callModel = async (
     }
 
     const data = await response.json();
-    return data.choices[0].message.content;
+    rawResponse = data.choices[0].message.content || '';
   } else {
     throw new Error('未配置模型地址');
   }
+  
+  // 🔥 清洗响应：移除明显的无关内容和乱码
+  const cleanedResponse = cleanModelResponse(rawResponse);
+  
+  console.log('[ModelCall] Response length:', {
+    raw: rawResponse.length,
+    cleaned: cleanedResponse.length,
+    model: config.modelName,
+  });
+  
+  return cleanedResponse;
 };
 
 // 🔥 包装callModel，优雅处理AbortError

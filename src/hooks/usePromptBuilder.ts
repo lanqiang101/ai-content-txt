@@ -2,9 +2,9 @@ import { GenerationParams } from '../types';
 
 // 默认配置，如果外部未提供
 const CYCLE_CONFIG = {
-  stage2: {
-    cycles: 5,
-  },
+  stage1: { cycles: 2 },
+  stage2: { cycles: 8 }, // 🔥 增加cycles数量，从5增加到8，降低每轮字数压力
+  stage3: { cycles: 2 },
 };
 
 export const usePromptBuilder = () => {
@@ -159,12 +159,20 @@ ${detail?.randomInterlude ? '- 需要插入生活化随机插曲\n' : ''}
 
     const platformName = getPlatformName(reader?.targetPlatform || '');
 
-    return `你现在是一位顶尖的${platformName}网络小说作家，请帮我创作这篇小说的完整大纲。
+    return `【最高优先级指令】你必须使用简体中文输出！绝对禁止使用英文或其他语言！
+
+你现在是一位顶尖的${platformName}网络小说作家，请帮我创作这篇小说的完整大纲。
 
 主题：${topic}
 关键词：${keywords}
 目标总字数：${wordCount} 字
 整体文风：${style || '符合平台主流风格'}
+
+## ⚠️ 输出格式要求（极其重要）
+1. **必须使用简体中文** - 禁止任何英文单词、句子或段落
+2. **必须按照以下结构输出** - 不要自由发挥
+3. **每个章节用一句话概括** - 不要展开详细内容
+4. **人物设定要简洁** - 只写核心特征
 
 ## 设定参数
 ### 读者定位
@@ -193,13 +201,29 @@ ${plot?.forceConflictAtStart ? '- 开篇强制冲突\n' : ''}${plot?.seedForesha
 - 平均段落长度：${rhythm?.averageParaLength || 'short'}
 - 冲突频率：${rhythm?.conflictFrequency || 50}%
 
-请 output：
-1. 完整故事大纲（分章节）
-2. 主角人设
-3. 开篇第一章的详细大纲
-4. 预计章节列表
+## 📋 请按以下格式输出（严格遵守）
 
-用代码 format output，清晰分点。`;
+# 一、完整故事大纲
+（用3-5句话概括整个故事的起承转合）
+
+# 二、主角人设
+- 姓名：XXX
+- 年龄：XX岁
+- 性格特点：XXX
+- 核心缺陷：XXX
+- 人物动机：XXX
+
+# 三、分章节大纲（每章一句话梗概）
+第1章：XXXXX
+第2章：XXXXX
+第3章：XXXXX
+...
+
+# 四、预计章节列表
+共XX章，每章约XXX字
+
+---
+再次强调：所有内容必须使用简体中文，禁止出现任何英文！`;
   };
 
   const buildStage2Prompt = (
@@ -214,72 +238,73 @@ ${plot?.forceConflictAtStart ? '- 开篇强制冲突\n' : ''}${plot?.seedForesha
     const cycles = CYCLE_CONFIG.stage2.cycles;
     const wordsPerCycle = Math.ceil(targetWords / cycles);
 
-    let prompt = `我已经写好了小说大纲，请你帮我把它扩展写成完整正文。
+    let prompt = `【最高优先级指令】你必须生成 **至少 ${wordsPerCycle} 字** 的内容！这是硬性要求，绝对不能低于这个字数！
+
+我已经写好了小说大纲，请你帮我把它扩展写成完整正文。
+
+## 📏 字数控制要求（极其重要）
+- **本轮目标字数**: ${wordsPerCycle} 字
+- **最低要求**: ${Math.floor(wordsPerCycle * 0.9)} 字（绝对不能低于此数）
+- **理想范围**: ${wordsPerCycle} - ${Math.ceil(wordsPerCycle * 1.1)} 字
+- **请在文末标注实际字数**: [字数：XXXX]
+
+## 💡 如何达到字数要求（扩写技巧）
+如果字数不足，请使用以下方法扩写：
+1. **增加对话**: 让人物多说话，加入语气词、停顿、重复
+2. **心理描写**: 深入刻画人物内心想法、情绪变化
+3. **环境细节**: 描写场景的光线、声音、气味、温度
+4. **动作分解**: 把简单动作拆解成多个步骤详细描写
+5. **回忆插叙**: 插入人物的过往经历或背景故事
+6. **支线情节**: 添加次要人物的反应和互动
+7. **感官体验**: 从视觉、听觉、触觉、嗅觉多角度描写
+8. **比喻修辞**: 使用比喻、拟人等修辞手法丰富表达
 
 ## 相关记忆参考
 ${relatedMemory || '（无相关记忆）'}
 
-大纲内容：
+## 故事大纲
 ${stage1Result}
 
 当前已经写了 ${currentWordCount} 字，还需要写大约 ${targetWords} 字。
-
-## ⚠️ 字数控制指令（最高优先级）
-你必须生成 **${wordsPerCycle}字** 的内容。
-- 最少不能低于 ${Math.floor(wordsPerCycle * 0.9)} 字
-- 最多不能超过 ${Math.ceil(wordsPerCycle * 1.1)} 字
-- 每生成一个段落，请 mental 计算已生成的字数
-- 如果字数不足，请继续扩写细节、对话、描写
-- 如果字数过多，请精简冗余描述
-- **必须在文末标注实际字数**：[字数：1234]
-
-当前任务：生成约 ${wordsPerCycle} 字的内容。
-
-## 扩写指南
-为了达到字数要求，你可以：
-1. 增加对话细节和人物互动
-2. 深入描写环境和氛围
-3. 添加内心独白和心理活动
-4. 扩展动作描写和感官细节
-5. 增加次要情节和支线
-6. 丰富配角的反应和对话
-
-请遵循以下要求继续写作：
 `;
 
     const { reader, character, plot, antiAI } = params;
 
     if (reader?.coreAppeal) {
-      prompt += `- 始终紧扣读者核心诉求：${reader.coreAppeal}\n`;
+      prompt += `\n## 读者诉求\n- 始终紧扣核心诉求：${reader.coreAppeal}\n`;
     }
     if (reader?.taboo) {
-      prompt += `- 绝对不能包含以下内容：${reader.taboo}\n`;
+      prompt += `\n## 禁忌内容\n- 绝对不能包含：${reader.taboo}\n`;
     }
     if (character?.coreFlaw) {
-      prompt += `- 主角核心缺陷：${character.coreFlaw}，要贯穿始终\n`;
+      prompt += `\n## 人物设定\n- 主角核心缺陷：${character.coreFlaw}，要贯穿始终\n`;
     }
     if (plot?.forceConflictAtStart) {
-      prompt += `- 开篇必须有冲突抓住读者\n`;
+      prompt += `\n## 开篇要求\n- 必须有冲突抓住读者\n`;
     }
     if (antiAI?.templateDeletePercent && antiAI.templateDeletePercent > 0) {
-      prompt += `- 删除模板化句式\n`;
+      prompt += `\n## 反AI化\n- 删除模板化句式，避免"只见""就在这时""殊不知"等AI常用开头\n`;
     }
     if (antiAI?.unpredictableTurnPercent && antiAI.unpredictableTurnPercent > 20) {
-      prompt += `- 增加不可预测的转折\n`;
+      prompt += `\n- 增加不可预测的转折，拒绝套路化写作\n`;
     }
 
-    prompt += `\n请直接开始写正文，不要总结，不要说明，直接写故事内容。`;
+    prompt += `\n⚠️ **再次强调**: 请确保生成内容达到 ${wordsPerCycle} 字以上，否则视为任务失败！\n\nPlease directly start writing the story, do not summarize, do not explain, just write the story content.`;
 
     return prompt;
   };
 
   const buildStage3Prompt = (
     currentContent: string,
-    params: GenerationParams
+    params: GenerationParams,
+    relatedMemory: string = ''
   ): string => {
     const { antiAI } = params;
 
     let prompt = `请帮我打磨优化以下这篇小说，去除AI痕迹，让它更像真人写的。
+
+## 相关记忆 reference（确保不改变核心情节和人物设定）
+${relatedMemory || '（无相关记忆）'}
 
 原文：
 ${currentContent}
@@ -301,7 +326,12 @@ ${currentContent}
     }
 
     prompt += `
-保持原有故事走向不变，只优化文笔质感。Please directly output optimized full text.`;
+⚠️ **重要**: 
+1. 保持原有故事走向、人物设定、关键情节不变
+2. 只优化文笔质感，去除AI痕迹
+3. 如果原文中有伏笔或关键信息，必须保留
+
+Please directly output optimized full text.`;
 
     return prompt;
   };

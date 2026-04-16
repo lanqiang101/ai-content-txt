@@ -7,7 +7,7 @@ export default defineConfig({
   plugins: [react()],
   server: {
     proxy: {
-      // Only proxy /api/coding to Volcengine, leave /api/generate for local Ollama
+      // Volcengine API 特殊处理（必须放在前面，优先级更高）
       '/api/coding': {
         target: 'https://ark.cn-beijing.volces.com',
         changeOrigin: true,
@@ -19,6 +19,11 @@ export default defineConfig({
             proxyRes.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization';
           });
         },
+      },
+      // 代理其他所有 /api 请求到本地后端服务器
+      '/api': {
+        target: 'http://localhost:3000',
+        changeOrigin: true,
       },
     },
   },
