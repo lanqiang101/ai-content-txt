@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Clock, Loader2 } from "lucide-react";
+import { Clock, Loader2, Plus, X } from "lucide-react";
 import { useStore } from "../store/useStore";
 import { useGeneration } from "../hooks/useGeneration";
 import { CYCLE_CONFIG } from "../hooks/constants";
@@ -22,6 +22,7 @@ export const TimerAutomation: React.FC = () => {
     setBatchParams,
   } = useStore();
   const { runAllCycles, generateCandidates } = useGeneration();
+  const [newTheme, setNewTheme] = useState(""); // 🔥 新增主题输入状态
   const [generatedCount, setGeneratedCount] = useState(0);
   const [isGenerating, setIsGenerating] = useState(false);
 
@@ -59,13 +60,13 @@ export const TimerAutomation: React.FC = () => {
     setIsGenerating(true);
 
     try {
-      // 随机选择主题和字数
-      const randomTheme =
-        currentTimer.themes.length > 0
-          ? currentTimer.themes[
-              Math.floor(Math.random() * currentTimer.themes.length)
-            ]
-          : "都市生活";
+      // 🔥 根据当前已生成的数量，按顺序选择主题（循环使用）
+      const themes = currentTimer.themes.length > 0 ? currentTimer.themes : ["都市生活"];
+      const themeIndex = generatedCount % themes.length; // 使用取模运算实现循环
+      const selectedTheme = themes[themeIndex];
+      
+      console.log(`[批量创作] 第${generatedCount + 1}本，使用主题[${themeIndex + 1}/${themes.length}]：${selectedTheme}`);
+      
       const randomWordCount = Math.floor(
         Math.random() *
           (currentTimer.maxWordCount - currentTimer.minWordCount) +
@@ -85,10 +86,10 @@ export const TimerAutomation: React.FC = () => {
         type,
       } = batchParams;
 
-      // 设置参数（主题和字数使用批量随机，其他复用批量配置参数）
+      // 设置参数（主题和字数使用批量配置，其他复用批量配置参数）
       useStore.getState().setParams({
         type,
-        topic: randomTheme,
+        topic: selectedTheme, // 🔥 使用按顺序选择的主题
         wordCount: randomWordCount,
         style,
         reader,
@@ -101,19 +102,18 @@ export const TimerAutomation: React.FC = () => {
       });
 
       // 先生成吸引读者的标题
+      let generatedTitle = `${selectedTheme}的故事`;
       try {
         // 基于主题生成吸引读者的标题
         const titleResults = await generateCandidates(
           `根据主题生成吸引人的小说标题`,
-          `主题是：${randomTheme}。请生成3个不同风格的小说标题，标题要吸引读者点击，突出爽点和钩子。每行一个标题，不要其他文字。`,
+          `主题是：${selectedTheme}。请生成3个不同风格的小说标题，标题要吸引读者点击，突出爽点和钩子。每行一个标题，不要其他文字。`,
           3,
         );
         if (titleResults.length > 0) {
-          // 随机选一个 - 这里可以后续用于设置标题参数
-          console.log(
-            "Generated title:",
-            titleResults[Math.floor(Math.random() * titleResults.length)],
-          );
+          // 随机选一个作为标题
+          generatedTitle = titleResults[Math.floor(Math.random() * titleResults.length)];
+          console.log(`[批量创作] 生成标题：${generatedTitle}`);
         }
       } catch (error) {
         console.error("Generate title failed, use default:", error);
@@ -144,12 +144,93 @@ export const TimerAutomation: React.FC = () => {
     }
   };
 
+  // 🔥 添加主题
+  const addTheme = () => {
+    if (newTheme.trim() && !timerAutomation.themes.includes(newTheme.trim())) {
+      setTimerAutomation({
+        themes: [...timerAutomation.themes, newTheme.trim()],
+      });
+      setNewTheme("");
+    }
+  };
+
+  // 🔥 删除主题
+  const removeTheme = (theme: string) => {
+    setTimerAutomation({
+      themes: timerAutomation.themes.filter((t) => t !== theme),
+    });
+  };
+
   return (
     <div className="space-y-4">
       <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
         <p className="text-sm text-blue-700 dark:text-blue-300">
           💡 批量自动创作会独立使用<strong>批量创作表单</strong>
           中的配置参数。启动后会自动连续生成直到完成目标数量，上一本完成直接开始下一本。
+        </p>
+      </div>
+
+      {/* 🔥 主题多选 - 批量创作的核心字段 */}
+      <div className="space-y-2">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+          创作主题（每本书会按顺序使用这些主题）
+        </label>
+        
+        {/* 主题输入框 */}
+        <div className="flex gap-2">
+          <input
+            type="text"
+            value={newTheme}
+            onChange={(e) => setNewTheme(e.target.value)}
+            onKeyPress={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                addTheme();
+              }
+            }}
+            disabled={timerAutomation.isRunning}
+            className="flex-1 px-3 py-2 border border-gray-200 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 bg-white/80 dark:bg-slate-700/80 text-gray-900 dark:text-gray-100 disabled:opacity-50"
+            placeholder="输入主题后按回车或点击添加..."
+          />
+          <button
+            onClick={addTheme}
+            disabled={!newTheme.trim() || timerAutomation.isRunning}
+            className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+          >
+            <Plus size={16} />
+            添加
+          </button>
+        </div>
+
+        {/* 已添加的主题列表 */}
+        {timerAutomation.themes.length > 0 && (
+          <div className="flex flex-wrap gap-2 mt-2">
+            {timerAutomation.themes.map((theme, index) => (
+              <div
+                key={index}
+                className="inline-flex items-center gap-1 px-3 py-1.5 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/30 dark:to-purple-900/30 border border-blue-200 dark:border-blue-800 rounded-full text-sm text-gray-700 dark:text-gray-300"
+              >
+                <span className="text-xs text-blue-600 dark:text-blue-400 font-medium">
+                  {index + 1}.
+                </span>
+                <span>{theme}</span>
+                {!timerAutomation.isRunning && (
+                  <button
+                    onClick={() => removeTheme(theme)}
+                    className="ml-1 text-gray-400 hover:text-red-500 transition-colors"
+                    title="删除此主题"
+                  >
+                    <X size={14} />
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* 提示信息 */}
+        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+          💡 提示：添加多个主题后，系统会按顺序循环使用。例如设置3个主题生成10本书，则每个主题会使用3-4次。
         </p>
       </div>
 

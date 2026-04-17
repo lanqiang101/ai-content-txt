@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useStore } from "../store/useStore";
 import { Chapter } from "../types";
 import {
@@ -179,7 +179,7 @@ export const ChapterList: React.FC<ChapterListProps> = ({
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-3 max-h-[450px] overflow-y-auto pr-2">
       {chapters.map((chapter) => {
         const StatusIcon = getStatusInfo(chapter.status || "draft").icon;
         const statusColor = getStatusInfo(chapter.status || "draft").color;

@@ -4,12 +4,14 @@ import { useStore } from '../store/useStore';
 import { WorkOverview } from '../components/WorkOverview';
 import { ChapterList } from '../components/ChapterList';
 import { Chapter } from '../types';
-import { ArrowLeft, BookOpen, FileText, Eye, Sparkles } from 'lucide-react';
+import { ArrowLeft, BookOpen, FileText, Eye, Sparkles, Plus } from 'lucide-react';
+import { useChapterGeneration } from '../hooks/useChapterGeneration'; // 🔥 导入章节生成hook
 
 export const WorkDetailPage: React.FC = () => {
   const { workId } = useParams<{ workId: string }>();
   const navigate = useNavigate();
   const { works } = useStore();
+  const { generateChapter } = useChapterGeneration(); // 🔥 获取章节生成函数
   
   const [selectedChapter, setSelectedChapter] = useState<Chapter | null>(null);
   const [work, setWork] = useState<any>(null);
@@ -23,6 +25,7 @@ export const WorkDetailPage: React.FC = () => {
   const [isEditing, setIsEditing] = useState(false); // 🔥 编辑模式状态
   const [editingContent, setEditingContent] = useState(''); // 🔥 编辑中的内容
   const [isSaving, setIsSaving] = useState(false); // 🔥 保存状态
+  const [isContinuingWriting, setIsContinuingWriting] = useState(false); // 🔥 续写状态
 
   // 🔥 调试日志
   useEffect(() => {
@@ -334,6 +337,82 @@ export const WorkDetailPage: React.FC = () => {
     }
   };
 
+  // 🔥 续写下一章
+  const handleContinueWriting = async () => {
+    if (!workId || !work) {
+      alert('作品信息不存在');
+      return;
+    }
+
+    if (!confirm('确定要续写下一章吗？这将基于已有内容生成新的章节。')) {
+      return;
+    }
+
+    setIsContinuingWriting(true);
+    try {
+      // 计算下一章的章节号
+      const maxChapterNumber = chapters.length > 0 
+        ? Math.max(...chapters.map(ch => ch.chapterNumber))
+        : 0;
+      const nextChapterNumber = maxChapterNumber + 1;
+      
+      console.log(`[WorkDetailPage] 📝 开始续写第${nextChapterNumber}章...`);
+      
+      // 获取作品的生成参数
+      const generationParams = work.generationParams;
+      if (!generationParams) {
+        throw new Error('作品缺少生成参数');
+      }
+      
+      // 计算目标字数（平均每章）
+      const targetWordCount = Math.floor(generationParams.wordCount / (generationParams.initialChapters || 10));
+      
+      // 创建章节大纲（简化版）
+      const chapterOutline = {
+        chapterNumber: nextChapterNumber,
+        title: `第${nextChapterNumber}章`,
+        summary: '基于前文内容继续发展',
+        targetWordCount,
+        status: 'generating' as const,
+      };
+      
+      // 调用章节生成函数
+      const newChapter = await generateChapter(
+        workId,
+        chapterOutline,
+        generationParams,
+        new AbortController().signal,
+        undefined
+      );
+      
+      if (newChapter) {
+        console.log(`[WorkDetailPage] ✅ 第${nextChapterNumber}章生成成功`);
+        
+        // 刷新章节列表
+        const response = await fetch(`/api/chapters?workId=${workId}`);
+        if (response.ok) {
+          const data = await response.json();
+          setChapters(data.chapters || []);
+          
+          // 自动选中新生成的章节
+          const latestChapter = data.chapters?.find((ch: Chapter) => ch.chapterNumber === nextChapterNumber);
+          if (latestChapter) {
+            setSelectedChapter(latestChapter);
+          }
+        }
+        
+        alert(`✅ 第${nextChapterNumber}章续写成功！`);
+      } else {
+        throw new Error('章节生成失败');
+      }
+    } catch (error) {
+      console.error('[WorkDetailPage] Continue writing error:', error);
+      alert(`续写失败：${error instanceof Error ? error.message : '未知错误'}`);
+    } finally {
+      setIsContinuingWriting(false);
+    }
+  };
+
   // 🔥 加载状态
   if (loading) {
     return (
@@ -447,6 +526,30 @@ export const WorkDetailPage: React.FC = () => {
                 onChapterClick={handleChapterClick} // 🔥 使用新的点击处理函数
                 selectedChapterId={selectedChapter?.id} // 🔥 传递选中状态
               />
+              
+              {/* 🔥 续写下一章按钮 - 移到ChapterList外部 */}
+              <button
+                onClick={handleContinueWriting}
+                disabled={isContinuingWriting}
+                className="w-full mt-4 p-4 border-2 border-dashed border-primary/50 hover:border-primary rounded-xl transition-all group disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <div className="flex items-center justify-center gap-2 text-primary">
+                  {isContinuingWriting ? (
+                    <>
+                      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary"></div>
+                      <span className="font-medium">续写中...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Plus className="h-5 w-5 group-hover:scale-110 transition-transform" />
+                      <span className="font-medium">续写下一章</span>
+                    </>
+                  )}
+                </div>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  基于已有内容继续生成新章节
+                </p>
+              </button>
             </div>
           </div>
 

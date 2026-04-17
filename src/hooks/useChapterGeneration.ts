@@ -7,6 +7,38 @@ import { GenerationParams, ChapterOutline, Chapter, Work } from '../types';
 import { CYCLE_CONFIG, analyzeContentQuality, generateTargetedContinuationPrompt } from './constants'; // 🔥 导入智能分析工具
 
 /**
+ * 智能截断到完整句子（避免在句子中间截断）
+ */
+const truncateToCompleteSentence = (content: string): string => {
+  const trimmedEnd = content.trimEnd();
+  
+  // 查找最后一个完整的句子结束符
+  const sentenceEndings = ['。', '！', '？', '…'];
+  let lastCompleteIndex = -1;
+  
+  for (const ending of sentenceEndings) {
+    const index = trimmedEnd.lastIndexOf(ending);
+    if (index > lastCompleteIndex) {
+      lastCompleteIndex = index;
+    }
+  }
+  
+  // 如果找到完整句子结束符，截断到这里
+  if (lastCompleteIndex > 0) {
+    return trimmedEnd.substring(0, lastCompleteIndex + 1);
+  }
+  
+  // 否则尝试在段落边界截断
+  const paragraphs = content.split('\n\n');
+  if (paragraphs.length > 1) {
+    return paragraphs.slice(0, -1).join('\n\n') + '\n\n';
+  }
+  
+  // 无法安全截断，返回原文
+  return content;
+};
+
+/**
  * 解析大纲，提取章节信息
  */
 const parseChapterOutlines = (stage1Result: string, targetWordCount: number): ChapterOutline[] => {
@@ -143,6 +175,13 @@ export const useChapterGeneration = () => {
         return null;
       }
       
+      // 🔥 检查是否已达到字数上限（目标字数的120%）
+      const maxAcceptableWords = Math.floor(targetWords * 1.2);
+      if (totalGeneratedWords >= maxAcceptableWords) {
+        console.log(`[ChapterGen] ⚠️ 已达到字数上限 (${totalGeneratedWords}/${maxAcceptableWords})，停止生成`);
+        break;
+      }
+      
       // 动态计算本轮目标字数
       const remainingCycles = cycles - i;
       const remainingTargetWords = targetWords - totalGeneratedWords;
@@ -193,8 +232,22 @@ export const useChapterGeneration = () => {
       console.log(`  - 累计字数: ${totalGeneratedWords}/${targetWords} (${(totalGeneratedWords/targetWords*100).toFixed(1)}%)`);
     }
     
-    // 🔥 自动续写机制：如果字数不足目标的85%，触发智能续写
-    const minAcceptableWords = Math.floor(targetWords * 0.85);
+    // 🔥 自动续写机制：如果字数不足目标的80%，触发智能续写
+    const minAcceptableWords = Math.floor(targetWords * 0.8);
+    const maxAcceptableWords = Math.floor(targetWords * 1.2);
+    
+    // 🔥 如果已经超过上限，截断到合理范围
+    if (totalGeneratedWords > maxAcceptableWords) {
+      console.warn(`[ChapterGen] ⚠️ 字数超出上限 (${totalGeneratedWords}/${maxAcceptableWords})，进行智能截断...`);
+      
+      // 尝试在完整句子处截断
+      const truncatedContent = truncateToCompleteSentence(chapterContent.substring(0, maxAcceptableWords));
+      chapterContent = truncatedContent;
+      totalGeneratedWords = truncatedContent.length;
+      
+      console.log(`[ChapterGen] ✅ 截断后字数: ${totalGeneratedWords}/${targetWords} (${(totalGeneratedWords/targetWords*100).toFixed(1)}%)`);
+    }
+    
     let retryCount = 0;
     const maxRetries = 2; // 最多续写2次
     
@@ -431,6 +484,19 @@ export const useChapterGeneration = () => {
         return;
       }
       
+      // 🔥 根据用户设置的 initialChapters 限制实际生成的章节数
+      const maxChaptersToGenerate = params.initialChapters || chapterOutlines.length;
+      const actualChaptersToGenerate = Math.min(maxChaptersToGenerate, chapterOutlines.length);
+      
+      console.log(`[ChapterGen] 📊 章节生成计划:`);
+      console.log(`   - Stage 1 解析出章节数: ${chapterOutlines.length}`);
+      console.log(`   - 用户设置初始章节数: ${params.initialChapters || '未设置(使用全部)'}`);
+      console.log(`   - 实际将生成章节数: ${actualChaptersToGenerate}`);
+      
+      if (actualChaptersToGenerate < chapterOutlines.length) {
+        console.log(`[ChapterGen] ⚠️ 注意：只生成前 ${actualChaptersToGenerate} 章，剩余章节可后续续写`);
+      }
+      
       // 🔥 处理作品ID：如果传入了 workId 就使用，否则创建新作品
       let finalWorkId = workId;
       
@@ -440,7 +506,7 @@ export const useChapterGeneration = () => {
         
         const { updateWork, setCurrentWork } = useStore.getState();
         await updateWork(finalWorkId, {
-          chapterCount: chapterOutlines.length,
+          chapterCount: actualChaptersToGenerate, // 🔥 使用实际要生成的章节数
         });
         
         setCurrentWork(finalWorkId);
@@ -457,7 +523,7 @@ export const useChapterGeneration = () => {
           type: params.type,
           expectedWordCount: params.wordCount,
           actualWordCount: 0,
-          chapterCount: chapterOutlines.length,
+          chapterCount: actualChaptersToGenerate, // 🔥 使用实际要生成的章节数
           status: 'generating' as const,
           chapters: [],
           characters: [],
@@ -505,14 +571,14 @@ export const useChapterGeneration = () => {
       const generatedChapters: Chapter[] = [];
       let totalWords = 0;
       
-      console.log(`[ChapterGen] 📖 开始逐章生成，共 ${chapterOutlines.length} 章`);
-      console.log(`[ChapterGen] 📊 章节详情:`, chapterOutlines.map(ch => ({
+      console.log(`[ChapterGen] 📖 开始逐章生成，共 ${actualChaptersToGenerate} 章`);
+      console.log(`[ChapterGen] 📊 章节详情:`, chapterOutlines.slice(0, actualChaptersToGenerate).map(ch => ({
         chapter: ch.chapterNumber,
         title: ch.title,
         targetWords: ch.targetWordCount,
       })));
       
-      for (let i = 0; i < chapterOutlines.length; i++) {
+      for (let i = 0; i < actualChaptersToGenerate; i++) {
         // Check if generation should be aborted
         const currentState = useStore.getState().generation;
         console.log(`[ChapterGen] 🔍 第 ${i + 1} 章开始前检查状态:`, {
