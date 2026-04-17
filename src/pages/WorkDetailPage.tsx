@@ -3,9 +3,8 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useStore } from '../store/useStore';
 import { WorkOverview } from '../components/WorkOverview';
 import { ChapterList } from '../components/ChapterList';
-import { ChapterEditor } from '../components/ChapterEditor';
 import { Chapter } from '../types';
-import { ArrowLeft, BookOpen, FileText, Eye } from 'lucide-react';
+import { ArrowLeft, BookOpen, FileText, Eye, Sparkles } from 'lucide-react';
 
 export const WorkDetailPage: React.FC = () => {
   const { workId } = useParams<{ workId: string }>();
@@ -19,6 +18,11 @@ export const WorkDetailPage: React.FC = () => {
   const [showFullContent, setShowFullContent] = useState(false);
   const [fullContent, setFullContent] = useState<string>('');
   const [loadingContent, setLoadingContent] = useState(false);
+  const [chapters, setChapters] = useState<Chapter[]>([]); // 🔥 存储章节列表
+  const [isOptimizing, setIsOptimizing] = useState(false); // 🔥 AI优化状态
+  const [isEditing, setIsEditing] = useState(false); // 🔥 编辑模式状态
+  const [editingContent, setEditingContent] = useState(''); // 🔥 编辑中的内容
+  const [isSaving, setIsSaving] = useState(false); // 🔥 保存状态
 
   // 🔥 调试日志
   useEffect(() => {
@@ -78,6 +82,38 @@ export const WorkDetailPage: React.FC = () => {
     }
   };
 
+  // 🔥 加载章节列表并默认选中第一章
+  useEffect(() => {
+    const fetchChapters = async () => {
+      if (!workId) return;
+      
+      try {
+        console.log('[WorkDetailPage] Loading chapters for workId:', workId);
+        const response = await fetch(`/api/chapters?workId=${workId}`);
+        
+        if (!response.ok) {
+          throw new Error('Failed to fetch chapters');
+        }
+        
+        const data = await response.json();
+        const chaptersData = data.chapters || [];
+        console.log(`[WorkDetailPage] Loaded ${chaptersData.length} chapters`);
+        
+        setChapters(chaptersData);
+        
+        // 🔥 默认选中第一章（如果有章节且当前未选中任何章节）
+        if (chaptersData.length > 0 && !selectedChapter && !showFullContent) {
+          console.log('[WorkDetailPage] Auto-selecting first chapter');
+          setSelectedChapter(chaptersData[0]);
+        }
+      } catch (err) {
+        console.error('[WorkDetailPage] Fetch chapters error:', err);
+      }
+    };
+
+    fetchChapters();
+  }, [workId]);
+
   // 🔥 加载完整内容
   const loadFullContent = async () => {
     if (!workId || fullContent) return;
@@ -126,6 +162,7 @@ export const WorkDetailPage: React.FC = () => {
       console.log(`[WorkDetailPage] Merged content length: ${mergedContent.length}`);
       setFullContent(mergedContent);
       setShowFullContent(true);
+      setSelectedChapter(null); // 🔥 切换到完整视图时清除选中章节
       console.log(`[WorkDetailPage] ✅ Loaded ${chapters.length} chapters, total ${mergedContent.length} chars`);
     } catch (error) {
       console.error('[WorkDetailPage] Load full content error:', error);
@@ -169,6 +206,11 @@ export const WorkDetailPage: React.FC = () => {
       // 更新本地状态
       setSelectedChapter(data.chapter);
       
+      // 🔥 更新章节列表
+      setChapters(prev => prev.map(ch => 
+        ch.chapterNumber === data.chapter.chapterNumber ? data.chapter : ch
+      ));
+      
       // 刷新作品信息
       if (workId) {
         await fetchWorkFromBackend(workId);
@@ -176,6 +218,119 @@ export const WorkDetailPage: React.FC = () => {
     } catch (error) {
       console.error('[WorkDetailPage] Save chapter error:', error);
       throw error;
+    }
+  };
+
+  // 🔥 AI优化章节
+  const handleOptimizeChapter = async () => {
+    if (!selectedChapter || !selectedChapter.content) {
+      alert('请先选择要优化的章节');
+      return;
+    }
+
+    // 🔥 弹出输入框，让用户输入优化要求
+    const optimizationRequest = prompt(
+      '请输入优化要求（可选）：\n\n例如：\n- 增强场景描写\n- 优化对话自然度\n- 提升文笔流畅度\n- 增加情感表达\n\n留空则使用默认优化',
+      ''
+    );
+
+    // 用户取消
+    if (optimizationRequest === null) {
+      return;
+    }
+
+    setIsOptimizing(true);
+    try {
+      console.log('[WorkDetailPage] Starting AI optimization for chapter:', selectedChapter.chapterNumber);
+      
+      // 调用后端API进行优化
+      const response = await fetch('/api/chapters/optimize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          workId,
+          chapterNumber: selectedChapter.chapterNumber,
+          content: selectedChapter.content,
+          optimizationRequest: optimizationRequest.trim(), // 🔥 传递用户的优化要求
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'AI优化失败');
+      }
+
+      const data = await response.json();
+      
+      if (!data.success) {
+        throw new Error(data.error || '优化失败');
+      }
+
+      // 更新选中的章节内容
+      const optimizedChapter = {
+        ...selectedChapter,
+        content: data.optimizedContent,
+        wordCount: data.optimizedContent.length,
+        updatedAt: Date.now(),
+      };
+      
+      setSelectedChapter(optimizedChapter);
+      
+      // 更新章节列表
+      setChapters(prev => prev.map(ch => 
+        ch.chapterNumber === optimizedChapter.chapterNumber ? optimizedChapter : ch
+      ));
+
+      alert('✅ AI优化完成！');
+    } catch (error: unknown) {
+      console.error('[WorkDetailPage] AI optimization error:', error);
+      const errorMessage = error instanceof Error ? error.message : '未知错误';
+      alert(`AI优化失败：${errorMessage}`);
+    } finally {
+      setIsOptimizing(false);
+    }
+  };
+
+  // 🔥 处理章节点击 - 切换显示而不是打开弹窗
+  const handleChapterClick = (chapter: Chapter) => {
+    console.log('[WorkDetailPage] Chapter clicked:', chapter.chapterNumber);
+    setSelectedChapter(chapter);
+    setShowFullContent(false); // 🔥 切换到章节视图时关闭完整视图
+    setIsEditing(false); // 🔥 切换章节时退出编辑模式
+  };
+
+  // 🔥 保存编辑内容
+  const handleSaveEdit = async () => {
+    if (!selectedChapter || !editingContent.trim()) {
+      alert('内容不能为空');
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const updatedChapter = {
+        ...selectedChapter,
+        content: editingContent,
+        wordCount: editingContent.length,
+        updatedAt: Date.now(),
+      };
+
+      await handleSaveChapter(updatedChapter);
+      
+      setIsEditing(false);
+      setSelectedChapter(updatedChapter);
+      
+      // 更新章节列表
+      setChapters(prev => prev.map(ch => 
+        ch.chapterNumber === updatedChapter.chapterNumber ? updatedChapter : ch
+      ));
+
+      alert('✅ 保存成功！');
+    } catch (error) {
+      console.error('[WorkDetailPage] Save edit error:', error);
+      alert('保存失败，请重试');
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -289,7 +444,8 @@ export const WorkDetailPage: React.FC = () => {
               
               <ChapterList 
                 workId={work.id}
-                onChapterClick={setSelectedChapter}
+                onChapterClick={handleChapterClick} // 🔥 使用新的点击处理函数
+                selectedChapterId={selectedChapter?.id} // 🔥 传递选中状态
               />
             </div>
           </div>
@@ -310,7 +466,13 @@ export const WorkDetailPage: React.FC = () => {
                     </p>
                   </div>
                   <button
-                    onClick={() => setShowFullContent(false)}
+                    onClick={() => {
+                      setShowFullContent(false);
+                      // 🔥 恢复选中第一章
+                      if (chapters.length > 0) {
+                        setSelectedChapter(chapters[0]);
+                      }
+                    }}
                     className="px-3 py-1.5 text-sm bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-slate-600 transition-colors"
                   >
                     返回章节列表
@@ -333,32 +495,96 @@ export const WorkDetailPage: React.FC = () => {
                 </div>
               </div>
             ) : selectedChapter ? (
-              /* 显示单个章节 */
+              /* 显示单个章节 - 支持查看和编辑模式 */
               <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg border border-gray-200/50 dark:border-slate-700/50 overflow-hidden">
                 <div className="p-6 border-b border-gray-200 dark:border-slate-700">
-                  <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">
-                    {selectedChapter.title || `第${selectedChapter.chapterNumber}章`}
-                  </h2>
-                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                    {selectedChapter.wordCount?.toLocaleString()} 字
-                  </p>
-                </div>
-                
-                <div className="p-6 max-h-[calc(100vh-300px)] overflow-y-auto">
-                  <div className="prose prose-gray dark:prose-invert max-w-none">
-                    <div className="whitespace-pre-wrap text-gray-900 dark:text-gray-100 leading-relaxed">
-                      {selectedChapter.content || <span className="text-gray-400 italic">暂无内容</span>}
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">
+                        {selectedChapter.title || `第${selectedChapter.chapterNumber}章`}
+                      </h2>
+                      <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                        {selectedChapter.wordCount?.toLocaleString()} 字
+                      </p>
+                    </div>
+                    
+                    <div className="flex gap-2">
+                      {/* 🔥 AI优化按钮 */}
+                      <button
+                        onClick={handleOptimizeChapter}
+                        disabled={isOptimizing || !selectedChapter.content}
+                        className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg hover:from-purple-600 hover:to-pink-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                        title="使用AI优化本章内容"
+                      >
+                        {isOptimizing ? (
+                          <>
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                            <span>优化中...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Sparkles className="h-4 w-4" />
+                            <span>AI优化</span>
+                          </>
+                        )}
+                      </button>
+                      
+                      {/* 🔥 保存按钮（仅在编辑模式下显示） */}
+                      {isEditing && (
+                        <button
+                          onClick={handleSaveEdit}
+                          disabled={isSaving}
+                          className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors disabled:opacity-50"
+                        >
+                          {isSaving ? '保存中...' : '保存'}
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
                 
+                <div className="p-6 max-h-[calc(100vh-300px)] overflow-y-auto">
+                  {isEditing ? (
+                    /* 编辑模式 */
+                    <textarea
+                      value={editingContent}
+                      onChange={(e) => setEditingContent(e.target.value)}
+                      className="w-full h-full min-h-[400px] resize-none bg-transparent border-0 focus:ring-0 text-gray-900 dark:text-gray-100 leading-relaxed text-base"
+                      style={{ fontFamily: "'Noto Serif SC', serif" }}
+                      placeholder="在此编辑章节内容..."
+                    />
+                  ) : (
+                    /* 查看模式 */
+                    <div className="prose prose-gray dark:prose-invert max-w-none">
+                      <div className="whitespace-pre-wrap text-gray-900 dark:text-gray-100 leading-relaxed">
+                        {selectedChapter.content || <span className="text-gray-400 italic">暂无内容</span>}
+                      </div>
+                    </div>
+                  )}
+                </div>
+                
                 <div className="p-4 border-t border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-900/50 flex justify-end gap-2">
-                  <button
-                    onClick={() => setSelectedChapter(selectedChapter)}
-                    className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors"
-                  >
-                    编辑章节
-                  </button>
+                  {isEditing ? (
+                    <button
+                      onClick={() => {
+                        setIsEditing(false);
+                        setEditingContent(selectedChapter.content || '');
+                      }}
+                      className="px-4 py-2 bg-gray-200 dark:bg-slate-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-slate-600 transition-colors"
+                    >
+                      取消编辑
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => {
+                        setIsEditing(true);
+                        setEditingContent(selectedChapter.content || '');
+                      }}
+                      className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors"
+                    >
+                      编辑章节
+                    </button>
+                  )}
                 </div>
               </div>
             ) : (
@@ -396,14 +622,6 @@ export const WorkDetailPage: React.FC = () => {
         </div>
       </div>
 
-      {/* 章节编辑器弹窗 */}
-      {selectedChapter && (
-        <ChapterEditor
-          chapter={selectedChapter}
-          onClose={() => setSelectedChapter(null)}
-          onSave={handleSaveChapter}
-        />
-      )}
     </div>
   );
 };

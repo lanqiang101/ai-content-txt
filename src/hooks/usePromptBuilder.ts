@@ -30,15 +30,8 @@ export const cleanGeneratedContent = (content: string): string => {
   cleaned = cleaned.replace(/^(?:情感线索|角色成长|伏笔铺垫|剧情走向)[:：].*$/gm, '');
   cleaned = cleaned.replace(/^(?:故事大纲|分章梗概|预计章节).*$/gm, '');
   
-  // 5. 移除字数标注（保留最后一个）
-  const wordCountMatches = cleaned.match(/\[?字数[：:]\s*\d+\]?/g);
-  if (wordCountMatches && wordCountMatches.length > 1) {
-    // 移除所有字数标注
-    cleaned = cleaned.replace(/\[?字数[：:]\s*\d+\]?/g, '');
-    // 在末尾重新添加总字数
-    const totalWords = cleaned.replace(/\s/g, '').length;
-    cleaned += `\n\n[字数：${totalWords}]`;
-  }
+  // 5. 🔥 移除所有字数标注（不在末尾重新添加）
+  cleaned = cleaned.replace(/\[?字数[：:]\s*\d+\]?/g, '');
   
   // 6. 移除空行过多的部分
   cleaned = cleaned.replace(/\n{4,}/g, '\n\n\n');
