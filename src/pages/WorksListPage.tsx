@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { FolderOpen, Search, ChevronLeft, ChevronRight, Activity, CheckCircle2, XCircle, Clock, Square } from "lucide-react";
 import { useStore } from "../store/useStore";
@@ -20,7 +20,7 @@ export const WorksListPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
 
   // 🔥 计算任务统计信息
-  const taskStats = React.useMemo(() => {
+  const taskStats = useMemo(() => {
     const generating = works.filter(w => w.status === 'generating').length;
     const completed = works.filter(w => w.status === 'completed').length;
     const failed = works.filter(w => w.status === 'failed').length;
@@ -82,16 +82,8 @@ export const WorksListPage: React.FC = () => {
     loadWorks(1);
   }, []);
 
-  // 🔥 如果有正在生成的任务，每5秒刷新一次状态
-  useEffect(() => {
-    if (taskStats.generating > 0) {
-      const interval = setInterval(() => {
-        loadWorks(currentPage);
-      }, 5000);
-      
-      return () => clearInterval(interval);
-    }
-  }, [taskStats.generating, currentPage]);
+  // ❌ 已移除定时刷新逻辑：作品状态由后端管理，无需前端轮询
+  // 用户可通过手动刷新按钮或重新进入页面获取最新状态
 
   // 处理页码变化
   const handlePageChange = (page: number) => {
@@ -336,6 +328,10 @@ export const WorksListPage: React.FC = () => {
 };
 
 export default WorksListPage;
+
+
+
+
 
 
 

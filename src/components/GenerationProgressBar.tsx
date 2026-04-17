@@ -37,30 +37,43 @@ export const GenerationProgressBar: React.FC = () => {
     const currentWork = works.find(w => w.id === currentWorkId);
     const totalChapters = currentWork?.chapterCount || 8;
     
-    // 逐章模式：阶段1是大纲生成，阶段2是逐章生成
-    if (currentStage === 0) {
-      // 大纲生成阶段
+    // 逐章模式：currentStage=1是大纲生成，currentStage=2是逐章生成，currentStage=3是整体打磨
+    if (currentStage === 1) {
+      // 大纲生成阶段（Stage 1）
       progress = 5; // 大纲占5%
-      statusText = "📋 阶段1/3：正在生成章节大纲...";
+      statusText = "📋 阶段1/4：正在生成章节大纲...";
       detailedInfo = "AI 正在规划整部小说的章节结构";
-    } else if (currentStage === 1) {
-      // 逐章生成阶段
-      progress = Math.min(5 + ((completedCycles / totalChapters) * 95), 100);
-      const currentChapterNum = completedCycles + 1;
+    } else if (currentStage === 2) {
+      // 逐章生成阶段（Stage 2）
+      // 🔥 修正进度计算：基于当前章节进度
+      const currentChapterNum = Math.min(completedCycles + 1, totalChapters);
+      const progressRatio = totalChapters > 0 ? completedCycles / totalChapters : 0;
+      progress = Math.min(5 + (progressRatio * 85), 90); // 最多90%，留10%给打磨和完成
+      
       const currentChapter = currentWork?.chapters?.find(c => c.chapterNumber === currentChapterNum);
       const chapterTitle = currentChapter?.title || `第${currentChapterNum}章`;
       
-      statusText = `📖 阶段2/3：正在生成第 ${currentChapterNum}/${totalChapters} 章`;
+      statusText = `📖 阶段2/4：正在生成第 ${currentChapterNum}/${totalChapters} 章`;
       detailedInfo = `${chapterTitle}`;
-    } else {
+    } else if (currentStage === 3) {
+      // 整体打磨阶段（Stage 3）
+      progress = 95;
+      statusText = "✨ 阶段3/4：正在进行全文打磨...";
+      detailedInfo = "优化文笔，去除AI痕迹，确保连贯性";
+    } else if (currentStage === 4) {
       // 完成阶段
       progress = 100;
-      statusText = "✅ 阶段3/3：生成完成，正在整理作品...";
+      statusText = "✅ 阶段4/4：生成完成，正在整理作品...";
       detailedInfo = "即将完成全部创作";
+    } else {
+      // 未知阶段，显示生成中
+      progress = 50;
+      statusText = "🔄 生成进行中...";
+      detailedInfo = "请稍候";
     }
   } else {
     // 🔥 传统多轮生成模式（固定7次循环：Stage1×2 + Stage2×3 + Stage3×2）
-    // currentStage: 0=Stage1, 1=Stage2, 2=Stage3
+    // currentStage: 1=Stage1, 2=Stage2, 3=Stage3
     // currentCycle: 当前阶段的循环序号（从1开始）
     // completedCycles: 已完成的总循环数
     
@@ -71,21 +84,21 @@ export const GenerationProgressBar: React.FC = () => {
     let stageTotalCycles = 0;
     let previousCompletedCycles = 0;
     
-    if (currentStage === 0) {
+    if (currentStage === 1) {
       // Stage 1: 骨架搭建（2次循环）
       stageTotalCycles = 2;
       previousCompletedCycles = 0;
       cycleInStage = currentCycle || 1;
       statusText = `📝 阶段1/3：骨架搭建 - 第${cycleInStage}/2次循环`;
       detailedInfo = "搭框架 + 补漏洞";
-    } else if (currentStage === 1) {
+    } else if (currentStage === 2) {
       // Stage 2: 血肉填充（3次循环）
       stageTotalCycles = 3;
       previousCompletedCycles = 2;
       cycleInStage = currentCycle || 1;
       statusText = `✍️ 阶段2/3：血肉填充 - 第${cycleInStage}/3次循环`;
       detailedInfo = "填细节 + 埋钩子";
-    } else if (currentStage === 2) {
+    } else if (currentStage === 3) {
       // Stage 3: 去AI打磨（2次循环）
       stageTotalCycles = 2;
       previousCompletedCycles = 5;
@@ -102,12 +115,13 @@ export const GenerationProgressBar: React.FC = () => {
     
     // 🔥 基于当前阶段和循环计算进度
     if (cycleInStage > 0 && stageTotalCycles > 0) {
-      // 当前阶段的进度百分比 (0-1)
+      // 🔥 修正进度计算：使用正确的公式
+      // 当前阶段内的进度 (0-1)
       const stageProgress = (cycleInStage - 1) / stageTotalCycles;
-      // 总进度 = 之前阶段完成的百分比 + 当前阶段的进度
+      // 总进度 = 之前阶段完成的百分比 + 当前阶段的进度 × 当前阶段权重
       const previousStagesProgress = previousCompletedCycles / totalCycles;
-      const currentStageProgress = stageProgress / totalCycles;
-      progress = Math.min(((previousStagesProgress + currentStageProgress) * 100), 99);
+      const currentStageContribution = (stageProgress * stageTotalCycles) / totalCycles;
+      progress = Math.min(((previousStagesProgress + currentStageContribution) * 100), 99);
     }
   }
 

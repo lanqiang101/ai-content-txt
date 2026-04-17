@@ -39,15 +39,13 @@ const truncateToCompleteSentence = (content: string): string => {
 };
 
 /**
- * 解析大纲，提取章节信息
+ * 从Stage 1的大纲中解析出章节信息
  */
-const parseChapterOutlines = (stage1Result: string, targetWordCount: number): ChapterOutline[] => {
+const parseChapterOutlines = (
+  stage1Result: string,
+  targetWordCount: number
+): ChapterOutline[] => {
   const chapters: ChapterOutline[] = [];
-  
-  // 🔥 根据目标字数智能计算章节数
-  // 长篇小说：每章建议 2000-3000 字
-  const MIN_WORDS_PER_CHAPTER = 2000;
-  const MAX_WORDS_PER_CHAPTER = 3000;
   
   let estimatedChapterCount: number;
   
@@ -58,13 +56,15 @@ const parseChapterOutlines = (stage1Result: string, targetWordCount: number): Ch
     // 中篇：5-8章
     estimatedChapterCount = Math.max(5, Math.min(8, Math.ceil(targetWordCount / 2500)));
   } else {
-    // 长篇：按每章2500字计算，最多50章
-    estimatedChapterCount = Math.min(50, Math.ceil(targetWordCount / 2500));
+    // 长篇：按每章3000-4000字计算，最多50章
+    estimatedChapterCount = Math.min(50, Math.ceil(targetWordCount / 3500));
   }
   
+  // 🔥 严格计算每章字数，确保总和接近目标字数
   const wordsPerChapter = Math.ceil(targetWordCount / estimatedChapterCount);
   
   console.log(`[parseChapterOutlines] 目标字数: ${targetWordCount}, 预计章节数: ${estimatedChapterCount}, 每章约: ${wordsPerChapter}字`);
+  console.log(`[parseChapterOutlines] 字数验证: ${estimatedChapterCount}章 × ${wordsPerChapter}字 = ${estimatedChapterCount * wordsPerChapter}字 (目标: ${targetWordCount}字)`);
   
   // 尝试从大纲中提取章节标题和摘要
   // 格式可能是："第1章：xxx" 或 "第一章：xxx" 或 "Chapter 1: xxx"
@@ -79,7 +79,7 @@ const parseChapterOutlines = (stage1Result: string, targetWordCount: number): Ch
       chapterNumber: chapterNumber++,
       title: title || `第${chapterNumber - 1}章`,
       summary: '', // TODO: 从大纲中提取本章摘要
-      targetWordCount: wordsPerChapter,
+      targetWordCount: wordsPerChapter, // 🔥 每章使用计算出的目标字数
       status: 'pending',
     });
   }
@@ -93,12 +93,26 @@ const parseChapterOutlines = (stage1Result: string, targetWordCount: number): Ch
         chapterNumber: i,
         title: `第${i}章`,
         summary: '',
-        targetWordCount: wordsPerChapter,
+        targetWordCount: wordsPerChapter, // 🔥 每章使用计算出的目标字数
         status: 'pending',
       });
     }
   } else {
     console.log(`[parseChapterOutlines] 从大纲中解析出 ${chapters.length} 个章节`);
+  }
+  
+  // 🔥 验证总字数是否合理
+  const totalPlannedWords = chapters.reduce((sum, ch) => sum + ch.targetWordCount, 0);
+  const wordDiff = Math.abs(totalPlannedWords - targetWordCount);
+  const wordDiffPercent = (wordDiff / targetWordCount * 100).toFixed(1);
+  
+  console.log(`[parseChapterOutlines] 📊 字数验证:`);
+  console.log(`   - 规划总字数: ${totalPlannedWords}字`);
+  console.log(`   - 目标总字数: ${targetWordCount}字`);
+  console.log(`   - 差异: ${wordDiff}字 (${wordDiffPercent}%)`);
+  
+  if (parseFloat(wordDiffPercent) > 10) {
+    console.warn(`[parseChapterOutlines] ⚠️ 警告：规划总字数与目标字数差异超过10%！`);
   }
   
   return chapters;
@@ -151,6 +165,8 @@ export const useChapterGeneration = () => {
     onProgress?: (progress: number) => void
   ): Promise<Chapter | null> => {
     console.log(`[ChapterGen] 开始生成第${chapterOutline.chapterNumber}章: ${chapterOutline.title}`);
+    console.log(`[ChapterGen]   - 目标字数: ${chapterOutline.targetWordCount}字`);
+    console.log(`[ChapterGen]   - 允许范围: ${Math.floor(chapterOutline.targetWordCount * 0.8)}-${Math.floor(chapterOutline.targetWordCount * 1.2)}字`);
     
     const targetWords = chapterOutline.targetWordCount;
     const stage2Model = getActiveModel(config.stage2);
@@ -175,8 +191,10 @@ export const useChapterGeneration = () => {
         return null;
       }
       
-      // 🔥 检查是否已达到字数上限（目标字数的120%）
+      // 🔥 严格检查字数上限（目标字数的120%）
       const maxAcceptableWords = Math.floor(targetWords * 1.2);
+      const minAcceptableWords = Math.floor(targetWords * 0.8);
+      
       if (totalGeneratedWords >= maxAcceptableWords) {
         console.log(`[ChapterGen] ⚠️ 已达到字数上限 (${totalGeneratedWords}/${maxAcceptableWords})，停止生成`);
         break;
@@ -190,6 +208,8 @@ export const useChapterGeneration = () => {
       console.log(`[ChapterGen] 第${chapterOutline.chapterNumber}章 - 第${i + 1}/${cycles}轮:`);
       console.log(`  - 本轮目标: ${dynamicWordsPerCycle} 字`);
       console.log(`  - 已生成: ${totalGeneratedWords} 字`);
+      console.log(`  - 剩余目标: ${remainingTargetWords} 字`);
+      console.log(`  - 允许范围: ${minAcceptableWords}-${maxAcceptableWords} 字`);
       
       // 检索相关记忆
       let relatedMemory = '';
@@ -201,19 +221,26 @@ export const useChapterGeneration = () => {
         relatedMemory = previousContext;
       }
       
-      // 构建 Prompt
+      // 构建 Prompt - 🔥 传入本章目标字数和实际循环次数
+      const chapterParams = {
+        ...params,
+        wordCount: targetWords, // 🔥 关键修改：使用本章目标字数，而不是总字数
+      };
+      
       const cyclePrompt = i === 0
         ? buildStage2Prompt(
             `【本章大纲】${chapterOutline.title}\n${chapterOutline.summary}`,
-            { ...params, wordCount: dynamicWordsPerCycle },
+            chapterParams, // 🔥 使用本章参数
             totalGeneratedWords,
-            relatedMemory
+            relatedMemory,
+            cycles // 🔥 传递实际循环次数
           )
         : `${buildStage2Prompt(
             `【本章大纲】${chapterOutline.title}\n${chapterOutline.summary}`,
-            { ...params, wordCount: dynamicWordsPerCycle },
+            chapterParams, // 🔥 使用本章参数
             totalGeneratedWords,
-            relatedMemory
+            relatedMemory,
+            cycles // 🔥 传递实际循环次数
           )}\n\n已经写到这里：\n${chapterContent}\n\n请继续完善和补充。`;
       
       const cycleResult = await callModelSafe(cyclePrompt, stage2Model, abortSignal);
@@ -232,11 +259,16 @@ export const useChapterGeneration = () => {
       console.log(`  - 累计字数: ${totalGeneratedWords}/${targetWords} (${(totalGeneratedWords/targetWords*100).toFixed(1)}%)`);
     }
     
-    // 🔥 自动续写机制：如果字数不足目标的80%，触发智能续写
+    // 🔥 严格字数控制：确保在80%-120%范围内
     const minAcceptableWords = Math.floor(targetWords * 0.8);
     const maxAcceptableWords = Math.floor(targetWords * 1.2);
     
-    // 🔥 如果已经超过上限，截断到合理范围
+    console.log(`[ChapterGen] 📊 Stage 2 完成后的字数检查:`);
+    console.log(`   - 实际生成: ${totalGeneratedWords}字`);
+    console.log(`   - 目标字数: ${targetWords}字`);
+    console.log(`   - 允许范围: ${minAcceptableWords}-${maxAcceptableWords}字`);
+    
+    // 🔥 如果超过上限，强制截断
     if (totalGeneratedWords > maxAcceptableWords) {
       console.warn(`[ChapterGen] ⚠️ 字数超出上限 (${totalGeneratedWords}/${maxAcceptableWords})，进行智能截断...`);
       
@@ -248,48 +280,42 @@ export const useChapterGeneration = () => {
       console.log(`[ChapterGen] ✅ 截断后字数: ${totalGeneratedWords}/${targetWords} (${(totalGeneratedWords/targetWords*100).toFixed(1)}%)`);
     }
     
+    // 🔥 如果低于下限，触发续写
     let retryCount = 0;
     const maxRetries = 2; // 最多续写2次
     
     while (totalGeneratedWords < minAcceptableWords && retryCount < maxRetries) {
       retryCount++;
-      const remainingWords = targetWords - totalGeneratedWords;
-      console.warn(`[ChapterGen] ⚠️ 字数不足 (${totalGeneratedWords}/${minAcceptableWords})，触发第${retryCount}次智能续写...`);
-      console.log(`[ChapterGen]   - 还需补充: ${remainingWords} 字`);
+      console.log(`[ChapterGen] 🔄 字数不足 (${totalGeneratedWords}/${minAcceptableWords})，第${retryCount}次续写...`);
       
-      // 🔥 智能分析内容质量
+      const remainingWords = minAcceptableWords - totalGeneratedWords;
+      const recentContext = chapterContent.slice(-500);
+      const memoryQuery = `${params.topic} ${recentContext}`;
+      const relatedMemory = await retrieveMemory(memoryQuery, 5);
+      
+      // 🔥 分析内容质量，针对性续写
       const analysis = analyzeContentQuality(chapterContent);
-      console.log(`[ChapterGen] 📊 内容质量分析:`);
-      console.log(`   - 平均段落长度: ${Math.round(analysis.avgParagraphLength)} 字`);
-      console.log(`   - 对话比例: ${(analysis.dialogueRatio * 100).toFixed(1)}%`);
-      console.log(`   - 描写比例: ${(analysis.descriptionRatio * 100).toFixed(1)}%`);
-      console.log(`   - 动作比例: ${(analysis.actionRatio * 100).toFixed(1)}%`);
-      console.log(`   - 薄弱环节: ${analysis.weakSectionTypes.join(', ') || '无明显薄弱'}`);
-      
-      // 🔥 生成针对性的续写 Prompt
       const continuePrompt = generateTargetedContinuationPrompt(
         chapterContent,
         analysis,
         remainingWords
       );
-
+      
       const continueResult = await callModelSafe(continuePrompt, stage2Model, abortSignal);
       
       if (continueResult === null) {
-        console.log('[ChapterGen] 续写被用户取消');
+        console.log('[ChapterGen] 续写被取消');
         break;
       }
       
-      const actualAddedWords = continueResult.length;
-      chapterContent += '\n\n' + continueResult;
-      totalGeneratedWords += actualAddedWords;
+      chapterContent += continueResult;
+      totalGeneratedWords += continueResult.length;
       
-      console.log(`[ChapterGen] ✅ 第${retryCount}次续写成功: +${actualAddedWords}字`);
-      console.log(`[ChapterGen]   - 当前总字数: ${totalGeneratedWords}/${targetWords} (${(totalGeneratedWords/targetWords*100).toFixed(1)}%)`);
+      console.log(`[ChapterGen]   - 续写后字数: ${totalGeneratedWords}/${targetWords} (${(totalGeneratedWords/targetWords*100).toFixed(1)}%)`);
       
-      // 如果已经达到目标，提前退出
-      if (totalGeneratedWords >= targetWords * 0.95) {
-        console.log('[ChapterGen] ✅ 字数已达标，停止续写');
+      // 如果已经达到要求，停止续写
+      if (totalGeneratedWords >= minAcceptableWords) {
+        console.log(`[ChapterGen] ✅ 字数已达标，停止续写`);
         break;
       }
     }
@@ -304,18 +330,48 @@ export const useChapterGeneration = () => {
     const polishCycles = 2;
     
     for (let i = 0; i < polishCycles; i++) {
-      if (abortSignal?.aborted || !useStore.getState().generation.isGenerating) return null;
+      if (abortSignal?.aborted || !useStore.getState().generation.isGenerating) {
+        console.log('[ChapterGen] Stage 3 被用户取消');
+        return null;
+      }
       
-      const relatedMemory = await retrieveMemory(`${params.topic} ${chapterContent.substring(0, 500)}`, 3);
+      console.log(`[ChapterGen] Stage 3 - 第${i + 1}/${polishCycles}轮润色...`);
+      
+      const relatedMemory = await retrieveMemory(`${params.topic} ${polishedContent.substring(0, 500)}`, 3);
       const polishPrompt = buildStage3Prompt(polishedContent, params, relatedMemory);
       
       const polishResult = await callModelSafe(polishPrompt, stage3Model, abortSignal);
-      if (polishResult === null) return null;
       
-      polishedContent += polishResult;
+      if (polishResult === null) {
+        console.log('[ChapterGen] Stage 3 被用户取消');
+        return null;
+      }
+      
+      // 🔥 修复：Stage 3应该替换内容，而不是累加
+      // buildStage3Prompt返回的是完整润色后的内容，不是增量
+      polishedContent = polishResult;
+      
+      console.log(`[ChapterGen]   - 润色后字数: ${polishedContent.length}字`);
       
       const progress = 70 + ((i + 1) / polishCycles) * 30; // Stage 3 占30%进度
       onProgress?.(progress);
+    }
+    
+    // 🔥 验证Stage 3后的字数是否仍然在合理范围内
+    const finalWordCount = polishedContent.length;
+    
+    console.log(`[ChapterGen] 📊 Stage 3 完成后的字数检查:`);
+    console.log(`   - 实际字数: ${finalWordCount}字`);
+    console.log(`   - 目标字数: ${targetWords}字`);
+    console.log(`   - 允许范围: ${minAcceptableWords}-${maxAcceptableWords}字`);
+    
+    // 如果Stage 3导致字数超标，进行截断
+    if (finalWordCount > maxAcceptableWords) {
+      console.warn(`[ChapterGen] ⚠️ Stage 3后字数超出上限 (${finalWordCount}/${maxAcceptableWords})，进行智能截断...`);
+      const truncatedContent = truncateToCompleteSentence(polishedContent.substring(0, maxAcceptableWords));
+      polishedContent = truncatedContent;
+      
+      console.log(`[ChapterGen] ✅ 截断后字数: ${polishedContent.length}字`);
     }
     
     // 🔥 清理生成内容，移除元信息
@@ -463,9 +519,10 @@ export const useChapterGeneration = () => {
       console.log('[ChapterGen] ✅ Stage 1 完成，开始设置状态...');
       setGeneration({
         stage1Result,
-        currentStage: 1,
+        currentStage: 1, // 🔥 currentStage=1 表示大纲生成阶段
         currentCycle: 1,
         completedCycles: 0, // 🔥 逐章生成模式下，completedCycles 表示已完成的章节数，初始为0
+        isGeneratingStage: 1, // 🔥 明确标记当前在Stage 1
       });
       
       console.log('[ChapterGen] ✅ 状态已设置，开始解析章节大纲...');
@@ -544,30 +601,26 @@ export const useChapterGeneration = () => {
       setGeneration({ 
         ...latestGeneration, 
         currentWorkId: finalWorkId || undefined,
-        isGenerating: true, // 🔥 确保 isGenerating 为 true
-        isGeneratingStage: 2, // 🔥 进入 Stage 2（逐章生成）
+        isGenerating: true,
+        isGeneratingStage: 2,
+        currentStage: 2, // 🔥 同时更新currentStage为2
       });
       
-      console.log('[ChapterGen] ✅ 作品记录已就绪，workId:', finalWorkId);
-      console.log('[ChapterGen] 📊 当前 generation 状态:', {
-        isGenerating: useStore.getState().generation.isGenerating,
-        currentStage: useStore.getState().generation.currentStage,
-        isGeneratingStage: useStore.getState().generation.isGeneratingStage,
-        currentWorkId: useStore.getState().generation.currentWorkId,
-      });
-      
-      // 🔥 确保 finalWorkId 存在
-      if (!finalWorkId) {
-        console.error('[ChapterGen] ❌ 错误：finalWorkId 为空');
-        setGeneration({
-          isGenerating: false,
-          isGeneratingStage: null,
-          error: '作品ID生成失败',
+      // 🔥 如果传入的是已存在的作品ID（续写场景），保持状态为completed，不设置为generating
+      // 只有新创建的作品才需要设置为generating
+      if (!workId) {
+        // 新作品：已在上面创建时设置为generating
+        console.log('[ChapterGen] 🆕 新作品，状态已是generating');
+      } else {
+        // 续写场景：作品状态应保持为completed，只是内部章节在生成
+        const { updateWork } = useStore.getState();
+        await updateWork(finalWorkId!, {
+          status: 'completed', // 🔥 续写时保持completed状态
         });
-        return;
+        console.log('[ChapterGen] 📝 续写场景，作品状态保持为completed');
       }
       
-      // 逐章生成
+      // 生成章节
       const generatedChapters: Chapter[] = [];
       let totalWords = 0;
       
@@ -599,13 +652,14 @@ export const useChapterGeneration = () => {
         const outline = chapterOutlines[i];
         outline.status = 'generating';
         
-        console.log(`[ChapterGen] 🚀 开始生成第 ${i + 1}/${chapterOutlines.length} 章: ${outline.title} (目标: ${outline.targetWordCount}字)`);
+        console.log(`[ChapterGen] 🚀 开始生成第 ${i + 1}/${actualChaptersToGenerate} 章: ${outline.title} (目标: ${outline.targetWordCount}字)`);
         
-        // 更新章节状态
+        // 🔥 更新章节状态和进度
         setGeneration({
           currentStage: 2,
           currentCycle: i + 1,
-          completedCycles: i + 1,
+          completedCycles: i, // 🔥 使用i而不是i+1，表示已完成的章节数
+          isGeneratingStage: 2,
         });
         
         // 生成单章
@@ -615,10 +669,12 @@ export const useChapterGeneration = () => {
           params,
           abortController.signal,
           (progress: number) => {
+            // 🔥 章节内部进度更新
             setGeneration({
               currentStage: 2,
               currentCycle: i + 1,
-              completedCycles: i + 1,
+              completedCycles: i,
+              isGeneratingStage: 2,
             });
           }
         );
@@ -627,6 +683,14 @@ export const useChapterGeneration = () => {
           generatedChapters.push(chapter);
           totalWords += chapter.wordCount;
           outline.status = 'completed';
+          
+          // 🔥 更新进度：章节完成后更新completedCycles
+          setGeneration({
+            currentStage: 2,
+            currentCycle: i + 1,
+            completedCycles: i + 1, // 🔥 完成后更新为i+1
+            isGeneratingStage: 2,
+          });
           
           // 🔥 实时更新 Store 中的作品信息
           const store = useStore.getState();
@@ -643,7 +707,7 @@ export const useChapterGeneration = () => {
           
           setWorks(updatedWorks);
           
-          console.log(`[ChapterGen] 📊 进度: ${i + 1}/${chapterOutlines.length} 章, 本章 ${chapter.wordCount}字, 累计 ${totalWords} 字`);
+          console.log(`[ChapterGen] 📊 进度: ${i + 1}/${actualChaptersToGenerate} 章, 本章 ${chapter.wordCount}字, 累计 ${totalWords} 字`);
         } else {
           // If chapter generation returned null, it might have been cancelled
           if (abortController.signal.aborted || !useStore.getState().generation.isGenerating) {
@@ -685,6 +749,107 @@ export const useChapterGeneration = () => {
       }
       
       console.log(`[ChapterGen] ════════════════════════════════════════\n`);
+      
+      // 🔥 更新进度：开始整体打磨
+      setGeneration({
+        currentStage: 3,
+        completedCycles: actualChaptersToGenerate,
+      });
+      
+      // 🔥 新增：所有章节生成完成后，执行整体Stage 3打磨
+      console.log(`[ChapterGen] 🌟 开始执行整体Stage 3：全文打磨...`);
+      
+      try {
+        // 获取全文内容
+        const fullContent = generatedChapters
+          .map(ch => `# 第${ch.chapterNumber}章：${ch.title}\n\n${ch.content}`)
+          .join('\n\n---\n\n');
+        
+        console.log(`[ChapterGen]   - 全文总字数: ${fullContent.length}字`);
+        
+        // 分段打磨（避免一次性处理太长内容）
+        const stage3Model = getActiveModel(config.stage3);
+        const polishedChapters = [];
+        
+        for (let i = 0; i < generatedChapters.length; i++) {
+          const chapter = generatedChapters[i];
+          
+          if (abortController.signal.aborted || !useStore.getState().generation.isGenerating) {
+            console.log('[ChapterGen] 整体打磨被用户取消');
+            break;
+          }
+          
+          console.log(`[ChapterGen]   - 打磨第${chapter.chapterNumber}章...`);
+          
+          // 获取前后章节作为上下文
+          const prevChapter = i > 0 ? generatedChapters[i - 1] : null;
+          const nextChapter = i < generatedChapters.length - 1 ? generatedChapters[i + 1] : null;
+          
+          let context = '';
+          if (prevChapter) {
+            context += `【前一章摘要】${prevChapter.content.substring(0, 300)}...\n\n`;
+          }
+          if (nextChapter) {
+            context += `【后一章摘要】${nextChapter.content.substring(0, 300)}...\n\n`;
+          }
+          
+          const relatedMemory = await retrieveMemory(`${params.topic} ${chapter.content.substring(0, 500)}`, 3);
+          const polishPrompt = buildStage3Prompt(
+            chapter.content,
+            params,
+            relatedMemory + '\n\n' + context
+          );
+          
+          const polishResult = await callModelSafe(polishPrompt, stage3Model, abortController.signal);
+          
+          if (polishResult === null) {
+            console.log(`[ChapterGen]   - 第${chapter.chapterNumber}章打磨被取消`);
+            polishedChapters.push(chapter);
+            continue;
+          }
+          
+          // 验证打磨后的字数
+          const polishedWordCount = polishResult.length;
+          const targetWordCount = chapter.wordCount;
+          const maxAllowed = Math.floor(targetWordCount * 1.2);
+          
+          let finalContent = polishResult;
+          if (polishedWordCount > maxAllowed) {
+            console.warn(`[ChapterGen]   - 第${chapter.chapterNumber}章打磨后字数超标 (${polishedWordCount}/${maxAllowed})，截断...`);
+            finalContent = truncateToCompleteSentence(polishResult.substring(0, maxAllowed));
+          }
+          
+          polishedChapters.push({
+            ...chapter,
+            content: finalContent,
+            wordCount: finalContent.length,
+            updatedAt: Date.now(),
+          });
+          
+          console.log(`[ChapterGen]   - ✅ 第${chapter.chapterNumber}章打磨完成: ${finalContent.length}字`);
+        }
+        
+        // 更新生成的章节列表
+        if (polishedChapters.length > 0) {
+          generatedChapters.length = 0;
+          generatedChapters.push(...polishedChapters);
+          
+          // 更新总字数
+          totalWords = polishedChapters.reduce((sum, ch) => sum + ch.wordCount, 0);
+          
+          console.log(`[ChapterGen] ✅ 整体打磨完成，更新章节列表`);
+        }
+        
+        // 更新进度：整体打磨完成
+        setGeneration({
+          currentStage: 4,
+          completedCycles: actualChaptersToGenerate,
+        });
+      } catch (error) {
+        console.error('[ChapterGen] 整体打磨失败:', error);
+        // 即使打磨失败，也继续使用原有章节
+      }
+      
       const finalWorks = works.map((w: Work) => 
         w.id === finalWorkId 
           ? { ...w, status: 'completed' as const, actualWordCount: totalWords }

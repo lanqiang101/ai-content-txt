@@ -17,30 +17,30 @@ export const cleanGeneratedContent = (content: string): string => {
 
   // 1. 移除章节标题重复（如"第1章：XXX"）
   cleaned = cleaned.replace(/^#{1,6}\s*第[一二三四五六七八九十\d]+章[：:].*$/gm, '');
-  
+
   // 2. 移除人物设定说明
   cleaned = cleaned.replace(/^(?:主角|配角|人物|角色)[人设设定]*[:：].*$/gm, '');
   cleaned = cleaned.replace(/^-?\s*(?:姓名|年龄|性格|缺陷|动机|背景)[:：].*$/gm, '');
-  
+
   // 3. 移除情节分析/写作指导
   cleaned = cleaned.replace(/^(?:本章|这里|接下来|应该|需要).*(?:描写|展现|突出|强调|反转|冲突).*$/gm, '');
   cleaned = cleaned.replace(/^(?:【|\[).*(?:要点|提示|注意|说明|分析).*(?:】|\]).*$/gm, '');
-  
+
   // 4. 移除元信息标注
   cleaned = cleaned.replace(/^(?:情感线索|角色成长|伏笔铺垫|剧情走向)[:：].*$/gm, '');
   cleaned = cleaned.replace(/^(?:故事大纲|分章梗概|预计章节).*$/gm, '');
-  
+
   // 5. 🔥 移除所有字数标注（不在末尾重新添加）
   cleaned = cleaned.replace(/\[?字数[：:]\s*\d+\]?/g, '');
-  
+
   // 6. 移除空行过多的部分
   cleaned = cleaned.replace(/\n{4,}/g, '\n\n\n');
-  
+
   // 7. 去除首尾空白
   cleaned = cleaned.trim();
 
   console.log(`[cleanGeneratedContent] 清理前: ${content.length}字, 清理后: ${cleaned.length}字`);
-  
+
   return cleaned;
 };
 
@@ -89,13 +89,14 @@ export const usePromptBuilder = () => {
   };
 
   const buildFullPrompt = (params: GenerationParams): string => {
-    const {
-      type, topic, title, keywords, wordCount, style,
-      reader, character, plot, rhythm, detail, emotion, antiAI
-    } = params;
-
-    if (type === 'article') {
-      return buildArticlePrompt(topic, title, keywords, wordCount, style);
+    if (params.type === 'article') {
+      return buildArticlePrompt(
+        params.topic,
+        params.title,
+        params.keywords,
+        params.wordCount,
+        params.style
+      );
     }
 
     return buildNovelFullPrompt(params);
@@ -195,11 +196,11 @@ ${detail?.randomInterlude ? '- 需要插入生活化随机插曲\n' : ''}
     } = params;
 
     const platformName = getPlatformName(reader?.targetPlatform || '');
-    
+
     // 🔥 根据目标字数和篇幅类型，计算建议的章节数
     let suggestedChapterCount: number;
     let suggestedWordsPerChapter: number;
-    
+
     if (novelLength === 'short' || wordCount <= 10000) {
       // 短篇：3-5章
       suggestedChapterCount = Math.max(3, Math.min(5, Math.ceil(wordCount / 2500)));
@@ -209,9 +210,9 @@ ${detail?.randomInterlude ? '- 需要插入生活化随机插曲\n' : ''}
       suggestedChapterCount = Math.max(5, Math.min(8, Math.ceil(wordCount / 2500)));
       suggestedWordsPerChapter = Math.ceil(wordCount / suggestedChapterCount);
     } else {
-      // 长篇：按每章2500字计算
-      suggestedChapterCount = Math.min(50, Math.ceil(wordCount / 2500));
-      suggestedWordsPerChapter = 2500;
+      // 长篇：按每章2500-4000字计算
+      suggestedChapterCount = Math.min(50, Math.ceil(wordCount / 3000));
+      suggestedWordsPerChapter = Math.ceil(wordCount / suggestedChapterCount);
     }
 
     return `【最高优先级指令】你必须使用简体中文输出！绝对禁止使用英文或其他语言！
@@ -224,12 +225,30 @@ ${detail?.randomInterlude ? '- 需要插入生活化随机插曲\n' : ''}
 整体文风：${style || '符合平台主流风格'}
 篇幅类型：${novelLength === 'short' ? '短篇' : novelLength === 'medium' ? '中篇' : novelLength === 'long' ? '长篇' : '未指定'}
 
-## ⚠️ 章节规划要求（极其重要）
+## ⚠️ 章节规划要求（极其重要 - 违反将导致生成失败）
 1. **必须根据目标总字数 ${wordCount} 字来规划章节数**
 2. **建议章节数：${suggestedChapterCount} 章**
-3. **建议每章字数：${suggestedWordsPerChapter} 字左右**
+3. **建议每章字数：${suggestedWordsPerChapter} 字左右（±20%浮动）**
 4. **所有章节字数总和必须接近 ${wordCount} 字**
-5. 例如：如果目标是10000字，应该规划为4章×2500字，而不是10章×500字
+5. **每章字数计算公式：总字数 ÷ 章节数 = 每章字数**
+6. 例如：如果目标是${wordCount}字，规划${suggestedChapterCount}章，则每章约${suggestedWordsPerChapter}字
+7. **禁止**：不跑题、不水字数、不写半截内容、不写流水账、不进行无意义扩写
+
+## ⚠️ 每章内容要求（极其重要）
+### ✅ 必须做到：
+1. **每章必须是一个完整的故事单元** - 有开头、发展、高潮、结尾
+2. **每章结尾必须自然收束** - 可以留伏笔，但不允许未写完就结束
+3. **情节必须连贯统一** - 与前文呼应，为后文铺垫
+4. **字数必须严格控制** - 每章${suggestedWordsPerChapter}字左右，最多不超过${Math.floor(suggestedWordsPerChapter * 1.2)}字
+5. **内容必须有实质性推进** - 不能注水、不能重复、不能空洞
+
+### ❌ 严格禁止：
+1. **禁止跑题** - 偏离主题或核心情节
+2. **禁止水字数** - 用无意义的描写或对话凑字数
+3. **禁止写半截内容** - 章节必须在完整的情节节点结束
+4. **禁止流水账** - 不能只是罗列事件，要有重点和节奏
+5. **禁止无意义扩写** - 不能为了凑字数而重复或拖沓
+6. **禁止章节未完成就结束** - 每章必须有明确的结尾点
 
 ## ⚠️ 输出格式要求（极其重要）
 1. **必须使用简体中文** - 禁止任何英文单词、句子或段落
@@ -279,9 +298,25 @@ ${detail?.randomInterlude ? '- 需要插入生活化随机插曲\n' : ''}
       }
 ${plot?.forceConflictAtStart ? '- 开篇强制冲突\n' : ''}${plot?.seedForeshadow ? '- 需要埋下关键伏笔\n' : ''}
 
-### 节奏
+### 节奏控制
 - 平均段落长度：${rhythm?.averageParaLength || 'short'}
 - 冲突频率：${rhythm?.conflictFrequency || 50}%
+
+### 细节描写
+- 感官描写比例：${detail?.senseRatio || '中等'}
+- 场景氛围：${getAtmosphereName(detail?.atmosphere || 'relaxed')}
+- 环境描写比重：${detail?.environmentDescription || 30}%
+- 外貌描写比重：${detail?.characterAppearance || 20}%
+- 心理活动比重：${detail?.psychologicalActivity || 25}%
+- 对话比例：${detail?.dialogueProportion || 35}%
+
+### 情感表达
+- 情感递进方式：${emotion?.progression || '渐进式'}
+- 情感表达方式：${getEmotionStyleName(emotion?.expressionStyle || 'direct')}
+- 核心情感基调：${emotion?.coreEmotion || '积极向上'}
+- 情感强度：${emotion?.emotionalIntensity || 50}%
+- 情感波动幅度：${emotion?.emotionalFluctuation || 40}%
+- 主导情感：${emotion?.dominantEmotion || '希望与成长'}
 
 ## 📋 请按以下格式输出（严格遵守）
 
@@ -295,52 +330,93 @@ ${plot?.forceConflictAtStart ? '- 开篇强制冲突\n' : ''}${plot?.seedForesha
 - 核心缺陷：XXX
 - 人物动机：XXX
 
-# 三、分章节大纲（每章一句话梗概）
-第1章：XXXXX
-第2章：XXXXX
-第3章：XXXXX
+# 三、分章节大纲（每章一句话梗概，必须体现完整性）
+第1章：XXXXX（开头引入，建立情境）
+第2章：XXXXX（情节发展，冲突升级）
+第3章：XXXXX（高潮转折，问题解决）
 ...
 
 # 四、预计章节列表
 共${suggestedChapterCount}章，每章约${suggestedWordsPerChapter}字
 （说明：总字数 = ${suggestedChapterCount}章 × ${suggestedWordsPerChapter}字/章 ≈ ${wordCount}字）
+（要求：每章必须是完整的故事单元，有明确的开始和结束，不能半截而止）
 
 ---
-再次强调：所有内容必须使用简体中文，禁止出现任何英文！`;
+再次强调：所有内容必须使用简体中文，禁止出现任何英文！每章必须是完整独立的单元！`;
   };
 
   const buildStage2Prompt = (
     stage1Result: string,
     params: GenerationParams,
     currentWordCount: number,
-    relatedMemory: string = ''
+    relatedMemory: string = '',
+    actualCycles?: number // 🔥 新增：实际循环次数
   ): string => {
-    const { wordCount } = params;
-    const remainingWords = wordCount - currentWordCount;
-    const targetWords = remainingWords > 0 ? remainingWords : wordCount;
-    const cycles = CYCLE_CONFIG.stage2.cycles;
-    const wordsPerCycle = Math.ceil(targetWords / cycles);
+    const { wordCount, novelLength, reader, character, plot, detail, emotion, antiAI } = params;
 
-    let prompt = `【最高优先级指令】你必须生成 **至少 ${wordsPerCycle} 字** 的内容！这是硬性要求，绝对不能低于这个字数！
+    // 🔥 如果是逐章生成模式，params.wordCount已经是单章目标字数
+    // 如果是传统模式，params.wordCount是总字数，需要计算每轮字数
+    const isChapterMode = novelLength === 'long' || novelLength === 'medium';
+    const targetChapterWords = isChapterMode ? wordCount : wordCount; // 单章目标字数
 
-我已经写好了小说大纲，请你帮我把它扩展写成完整正文。
+    // 🔥 对于逐章生成，直接控制在本章字数范围内
+    const maxAllowedWords = Math.floor(targetChapterWords * 1.2); // 最多120%
+    const minRequiredWords = Math.floor(targetChapterWords * 0.8); // 最少80%
 
-## 📏 字数控制要求（极其重要）
-- **本轮目标字数**: ${wordsPerCycle} 字
-- **最低要求**: ${Math.floor(wordsPerCycle * 0.9)} 字（绝对不能低于此数）
-- **理想范围**: ${wordsPerCycle} - ${Math.ceil(wordsPerCycle * 1.1)} 字
-- **请在文末标注实际字数**: [字数：XXXX]
+    // 🔥 使用实际循环次数，而不是固定值
+    const cycles = actualCycles || CYCLE_CONFIG.stage2.cycles;
+    const wordsPerCycle = Math.ceil(targetChapterWords / cycles);
 
-## 💡 如何达到字数要求（扩写技巧）
-如果字数不足，请使用以下方法扩写：
-1. **增加对话**: 让人物多说话，加入语气词、停顿、重复
-2. **心理描写**: 深入刻画人物内心想法、情绪变化
-3. **环境细节**: 描写场景的光线、声音、气味、温度
-4. **动作分解**: 把简单动作拆解成多个步骤详细描写
-5. **回忆插叙**: 插入人物的过往经历或背景故事
-6. **支线情节**: 添加次要人物的反应和互动
-7. **感官体验**: 从视觉、听觉、触觉、嗅觉多角度描写
-8. **比喻修辞**: 使用比喻、拟人等修辞手法丰富表达
+    let prompt = `【最高优先级指令】你必须生成 **严格控制在 ${minRequiredWords}-${maxAllowedWords} 字范围内** 的内容！这是硬性要求！
+
+## ⚠️ 字数控制要求（极其重要 - 违反将导致生成失败）
+- **本章目标字数**: ${targetChapterWords} 字
+- **最低要求**: ${minRequiredWords} 字（绝对不能低于此数）
+- **最高限制**: ${maxAllowedWords} 字（绝对不能超过此数）
+- **理想范围**: ${Math.floor(targetChapterWords * 0.9)} - ${Math.ceil(targetChapterWords * 1.1)} 字
+- **本轮是第 1/${cycles} 轮，本轮目标约 ${wordsPerCycle} 字**
+- **必须在文末标注实际字数**: [字数：XXXX]
+
+## ⚠️ 内容质量要求（极其重要）
+### ✅ 必须做到：
+1. **章节必须完整独立** - 有明确的开头、发展、高潮、结尾
+2. **结尾必须自然收束** - 可以留伏笔，但绝不允许未写完就结束
+3. **情节必须有实质性推进** - 不能注水、不能重复、不能空洞
+4. **与前文保持连贯** - 呼应前文，为后文铺垫
+5. **严格控制字数** - 必须在规定范围内，不多不少
+
+### ❌ 严格禁止：
+1. **禁止跑题** - 偏离本章核心情节或主题
+2. **禁止水字数** - 用无意义的描写或对话凑字数
+3. **禁止写半截内容** - 章节必须在完整的情节节点结束
+4. **禁止流水账** - 不能只是罗列事件，要有重点和节奏
+5. **禁止无意义扩写** - 不能为了凑字数而重复或拖沓
+6. **禁止章节未完成就结束** - 每章必须有明确的结尾点
+7. **禁止字数超标** - 不能超过${maxAllowedWords}字
+8. **禁止字数不足** - 不能低于${minRequiredWords}字
+
+## 💡 如何在限定字数内写出好内容
+1. **精准控制节奏** - 开头快速入题，中间充实发展，结尾干净利落
+2. **对话简洁有力** - 每句对话都有目的，推动情节或展现人物
+3. **描写恰到好处** - 关键场景细致描写，次要场景一笔带过
+4. **情节紧凑推进** - 每个段落都有信息量，避免空转
+5. **结尾收束自然** - 在情节点自然结束，不拖泥带水
+
+## 📝 细节描写要求
+- 感官描写比例：${detail?.senseRatio || '中等'}
+- 场景氛围：${getAtmosphereName(detail?.atmosphere || 'relaxed')}
+- 环境描写比重：${detail?.environmentDescription || 30}%
+- 外貌描写比重：${detail?.characterAppearance || 20}%
+- 心理活动比重：${detail?.psychologicalActivity || 25}%
+- 对话比例：${detail?.dialogueProportion || 35}%
+
+## 🎭 情感表达要求
+- 情感递进方式：${emotion?.progression || '渐进式'}
+- 情感表达方式：${getEmotionStyleName(emotion?.expressionStyle || 'direct')}
+- 核心情感基调：${emotion?.coreEmotion || '积极向上'}
+- 情感强度：${emotion?.emotionalIntensity || 50}%
+- 情感波动幅度：${emotion?.emotionalFluctuation || 40}%
+- 主导情感：${emotion?.dominantEmotion || '希望与成长'}
 
 ## 相关记忆参考
 ${relatedMemory || '（无相关记忆）'}
@@ -348,35 +424,63 @@ ${relatedMemory || '（无相关记忆）'}
 ## 故事大纲
 ${stage1Result}
 
-当前已经写了 ${currentWordCount} 字，还需要写大约 ${targetWords} 字。
+当前已经写了 ${currentWordCount} 字，本章目标 ${targetChapterWords} 字。
 `;
 
-    const { reader, character, plot, antiAI } = params;
+    // 🔥 添加人物设定
+    if (character?.coreFlaw) {
+      prompt += `\n## 👤 人物设定（极其重要）
+- 主角核心缺陷：${character.coreFlaw}（必须贯穿始终，推动情节发展）
+- 隐藏秘密强度：${character?.secretIntensity || 0}%
+- 人物弧光：${character?.arcType === 'none' ? '无弧光/不变态' :
+          character?.arcType === 'positive' ? '成长弧光' :
+            character?.arcType === 'fall' ? '堕落弧光' : '复杂反转'}
+`;
+    }
 
+    // 🔥 添加读者定位
     if (reader?.coreAppeal) {
-      prompt += `\n## 读者诉求\n- 始终紧扣核心诉求：${reader.coreAppeal}\n`;
+      prompt += `\n## 🎯 读者诉求
+- 始终紧扣核心诉求：${reader.coreAppeal}
+`;
     }
     if (reader?.taboo) {
-      prompt += `\n## 禁忌内容\n- 绝对不能包含：${reader.taboo}\n`;
-    }
-    if (character?.coreFlaw) {
-      prompt += `\n## 人物设定\n- 主角核心缺陷：${character.coreFlaw}，要贯穿始终\n`;
-    }
-    if (plot?.forceConflictAtStart) {
-      prompt += `\n## 开篇要求\n- 必须有冲突抓住读者\n`;
-    }
-    if (antiAI?.templateDeletePercent && antiAI.templateDeletePercent > 0) {
-      prompt += `\n## 反AI化\n- 删除模板化句式，避免"只见""就在这时""殊不知"等AI常用开头\n`;
-    }
-    if (antiAI?.unpredictableTurnPercent && antiAI.unpredictableTurnPercent > 20) {
-      prompt += `\n- 增加不可预测的转折，拒绝套路化写作\n`;
+      prompt += `\n## 🚫 禁忌内容
+- 绝对不能包含：${reader.taboo}
+`;
     }
 
-    prompt += `\n⚠️ **再次强调**: 
-1. **必须确保生成内容达到 ${wordsPerCycle} 字以上**，否则视为任务失败！
+    // 🔥 添加情节架构
+    if (plot?.forceConflictAtStart) {
+      prompt += `\n## ⚡ 开篇要求
+- 必须有冲突抓住读者
+`;
+    }
+    if (plot?.seedForeshadow) {
+      prompt += `\n## 🔮 伏笔要求
+- 需要埋下关键伏笔
+`;
+    }
+
+    // 🔥 添加反AI化要求
+    if (antiAI?.templateDeletePercent && antiAI.templateDeletePercent > 0) {
+      prompt += `\n## 🤖 反AI化要求
+- 删除模板化句式，避免"只见""就在这时""殊不知"等AI常用开头
+`;
+    }
+    if (antiAI?.unpredictableTurnPercent && antiAI.unpredictableTurnPercent > 20) {
+      prompt += `\n- 增加不可预测的转折，拒绝套路化写作
+`;
+    }
+
+    prompt += `\n⚠️ **再次强调（极其重要）**: 
+1. **字数必须严格控制在 ${minRequiredWords}-${maxAllowedWords} 字范围内**，超出或不足都视为失败！
 2. **必须使用简体中文输出**，禁止任何英文单词或句子！
 3. **只写故事正文内容**，不要包含任何分析、说明、设定介绍！
-4. 如果感觉字数不够，请使用扩写技巧（增加对话、心理描写、环境细节等）来充实内容。
+4. **章节必须完整** - 有开头、发展、高潮、结尾，绝不允许未写完就结束！
+5. **禁止跑题、禁止水字数、禁止写半截内容、禁止写流水账、禁止无意义扩写**！
+6. **细节描写要恰到好处** - 按照设定的比例进行环境、外貌、心理、对话描写
+7. **情感表达要真实自然** - 按照设定的情感基调和强度进行表达
 
 ## 🚫 严格禁止的内容（绝对不能出现）
 - ❌ 人物设定说明（如"主角性格：XXX"）
@@ -385,15 +489,26 @@ ${stage1Result}
 - ❌ 元信息标注（如"【本章要点】"、"【情感线索】"）
 - ❌ 章节标题重复（不要在正文中再次写"第X章：XXX"）
 - ❌ 任何非故事内容的说明文字
+- ❌ 章节未写完就结束（必须有明确的结尾点）
+- ❌ 字数超过${maxAllowedWords}字或低于${minRequiredWords}字
 
 ## ✅ 正确的输出格式
 直接开始写故事正文，就像小说一样：
 - 以场景描写或人物动作开头
 - 包含对话、心理活动、环境描写
 - 自然推进情节发展
+- 在情节点自然收束，完整结束本章
 - 在文末标注：[字数：XXXX]
 
-Please directly begin write story正文， don't summarize, don't explain, directly write story content.`;
+## ⚠️ 字数自检要求
+在生成内容前，请先在内心计算：
+- 我的目标是写 ${targetChapterWords} 字左右
+- 最少不能低于 ${minRequiredWords} 字
+- 最多不能超过 ${maxAllowedWords} 字
+- 每个段落都要有信息量，不能注水
+- 结尾必须在完整的情节节点收束
+
+Please directly begin writing the story content. **STRICTLY CONTROL WORD COUNT: ${minRequiredWords}-${maxAllowedWords} characters**. **CHAPTER MUST BE COMPLETE AND SELF-CONTAINED**.`;
 
     return prompt;
   };
