@@ -1,4 +1,5 @@
 import express from 'express';
+import { v4 as uuidv4 } from 'uuid';
 
 const router = express.Router();
 
@@ -44,6 +45,10 @@ export default function (db) {
     try {
       const character = req.body;
       const now = Date.now();
+      
+      // 🔥 由后端生成UUID
+      const characterId = uuidv4();
+      
       const stmt = db.prepare(`
         INSERT INTO characters (
           id, work_id, name, description, appearance, personality, outfit,
@@ -51,7 +56,7 @@ export default function (db) {
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
       stmt.run(
-        character.id,
+        characterId,  // 🔥 使用后端生成的ID
         character.workId,
         character.name,
         character.description || null,
@@ -62,8 +67,14 @@ export default function (db) {
         character.createdAt || now,
         character.updatedAt || now
       );
-      res.json(character);
+      
+      // 🔥 返回包含后端生成ID的完整角色数据
+      res.json({
+        ...character,
+        id: characterId,
+      });
     } catch (error) {
+      console.error('[Characters] Add character error:', error);
       res.status(500).json({ error: error.message });
     }
   });

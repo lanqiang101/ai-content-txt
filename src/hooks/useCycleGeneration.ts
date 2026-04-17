@@ -3,7 +3,8 @@ import { useStore } from '../store/useStore';
 import { callModelSafe, getActiveModel } from './useModelCall';
 import { usePromptBuilder } from './usePromptBuilder';
 import { useMemory } from './useMemory';
-import { CYCLE_CONFIG } from './constants';
+import { useChapterGeneration } from './useChapterGeneration'; // 🔥 导入逐章生成 hook
+import { CYCLE_CONFIG, analyzeContentQuality, generateTargetedContinuationPrompt } from './constants'; // 🔥 导入智能分析工具
 import { GenerationParams, CycleResult } from '../types';
 
 /**
@@ -95,9 +96,97 @@ export const useCycleGeneration = () => {
   const { config, generation, setGeneration } = useStore();
   const { buildStage1Prompt, buildStage2Prompt, buildStage3Prompt } = usePromptBuilder();
   const { retrieveMemory, addChapterMemory } = useMemory();
+  const { startChapterGeneration } = useChapterGeneration(); // 🔥 获取逐章生成函数
 
   const startGeneration = useCallback(async (params: GenerationParams) => {
     if (generation.isGenerating) return;
+
+    // 🔥 判断是否使用逐章生成模式
+    // 条件：小说类型 + (长篇 OR 中篇)
+    // 注意：短篇(<10000字)使用传统多轮生成，中篇和长篇都使用逐章生成
+    const shouldUseChapterGeneration = 
+      params.type === 'novel' && 
+      (params.novelLength === 'long' || params.novelLength === 'medium');
+    
+    console.log(`[useCycleGeneration] 生成模式判断:`);
+    console.log(`  - 类型: ${params.type}`);
+    console.log(`  - 篇幅: ${params.novelLength}`);
+    console.log(`  - 目标字数: ${params.wordCount}`);
+    console.log(`  - 使用逐章生成: ${shouldUseChapterGeneration ? '✅ 是' : '❌ 否'}`);
+    
+    // 🔥 如果应该使用逐章生成，调用 startChapterGeneration
+    if (shouldUseChapterGeneration) {
+      console.log('[useCycleGeneration] 🚀 启动逐章生成模式...');
+      console.log('[useCycleGeneration] ⚠️ 注意：逐章生成模式中 Stage 1 只有1次调用，不是循环');
+      
+      try {
+        // 🔥 先创建作品记录（不传入ID，由后端生成）
+        const { addWork, setCurrentWork } = useStore.getState();
+        const now = Date.now();
+
+        console.log('[useCycleGeneration] 📝 开始创建作品记录...');
+        const savedWork = await addWork({
+          id: '', // 🔥 空ID，让后端生成
+          title: params.title || params.topic || "未命名作品",
+          topic: params.topic,
+          keywords: params.keywords,
+          type: params.type,
+          expectedWordCount: params.wordCount,
+          actualWordCount: 0,
+          chapterCount: 0, // 🔥 逐章模式下章节数会在生成后更新
+          status: 'generating', // 创作中
+          chapters: [],
+          characters: [],
+          createdAt: now,
+          updatedAt: now,
+          storyboardIds: [],
+          content: '',
+          generationParams: params,
+        });
+
+        // 🔥 验证作品是否创建成功
+        if (!savedWork || !savedWork.id) {
+          throw new Error('作品创建失败：未返回有效的作品ID');
+        }
+
+        // 🔥 使用后端返回的作品ID
+        const currentWorkId = savedWork.id;
+        console.log('[useCycleGeneration] ✅ 作品创建成功，ID:', currentWorkId);
+
+        // 🔥 设置当前正在生成的作品ID，并标记为生成中
+        setGeneration({ 
+          currentWorkId,
+          isGenerating: true,  // 🔥 标记为生成中，让进度条可见
+          currentStage: 0,      // 🔥 初始阶段
+          completedCycles: 0,   // 🔥 重置完成循环数
+        });
+        
+        // 设置为当前作品，方便用户查看
+        setCurrentWork(currentWorkId);
+        
+        console.log('[useCycleGeneration] 🚀 开始逐章生成流程...');
+        // 🔥 将 workId 传递给 startChapterGeneration
+        await startChapterGeneration(params, currentWorkId);
+        console.log('[useCycleGeneration] ✅ 逐章生成模式已完成');
+      } catch (error) {
+        console.error('[useCycleGeneration] ❌ 作品创建或生成流程失败:', error);
+        
+        // 🔥 更新生成状态为错误
+        setGeneration({
+          isGenerating: false,
+          isGeneratingStage: null,
+          error: `作品创建失败: ${error instanceof Error ? error.message : String(error)}`,
+        });
+        
+        // 重新抛出错误，让上层捕获
+        throw error;
+      }
+      return;
+    }
+    
+    // 🔥 否则使用传统多轮生成（短篇或文章）
+    console.log('[useCycleGeneration] 📝 启动传统多轮生成模式...');
+    console.log('[useCycleGeneration] ⚠️ 注意：传统模式中 Stage 1 有', CYCLE_CONFIG.stage1.cycles, '次循环');
 
     // 重置生成状态
     setGeneration({
@@ -119,13 +208,14 @@ export const useCycleGeneration = () => {
     // 🔥 保存引用以便外部调用 stopGeneration 时终止（通过闭包，不需要保存到state）
 
     try {
-      // 开始生成时就创建作品添加到作品管理，状态为创作中
+      // 🔥 开始生成前先创建作品
       const { addWork, setCurrentWork } = useStore.getState();
       const now = Date.now();
-      const currentWorkId = `work-${now}`; // 🔥 提前定义 currentWorkId
 
-      addWork({
-        id: currentWorkId,
+      console.log('[useCycleGeneration] 📝 开始创建作品记录...');
+      // 🔥 不传入ID，让后端生成
+      const savedWork = await addWork({
+        id: '', // 🔥 空ID，让后端生成
         title: params.title || params.topic || "未命名作品",
         topic: params.topic,
         keywords: params.keywords,
@@ -143,11 +233,22 @@ export const useCycleGeneration = () => {
         generationParams: params,
       });
 
+      // 🔥 验证作品是否创建成功
+      if (!savedWork || !savedWork.id) {
+        throw new Error('作品创建失败：未返回有效的作品ID');
+      }
+
+      // 🔥 使用后端返回的作品ID
+      const currentWorkId = savedWork.id;
+      console.log('[useCycleGeneration] ✅ 作品创建成功，ID:', currentWorkId);
+
       // 🔥 设置当前正在生成的作品ID
       setGeneration({ currentWorkId });
       
       // 设置为当前作品，方便用户查看
       setCurrentWork(currentWorkId);
+      
+      console.log('[useCycleGeneration] 🚀 开始传统多轮生成流程...');
 
       // Stage 1: 大纲搭建
       const stage1Model = getActiveModel(config.stage1);
@@ -160,21 +261,38 @@ export const useCycleGeneration = () => {
       });
       let stage1Result = '';
       let currentContent1 = '';
+      
+      console.log(`[Generation] Stage 1: 开始 ${CYCLE_CONFIG.stage1.cycles} 次循环...`);
+      
       for (let i = 0; i < CYCLE_CONFIG.stage1.cycles; i++) {
-        if (abortSignal.aborted) break;
+        console.log(`[Generation] Stage 1 - 第 ${i + 1}/${CYCLE_CONFIG.stage1.cycles} 轮:`);
+        
+        if (abortSignal.aborted) {
+          console.log('[Generation] Stage 1 被中止');
+          break;
+        }
 
         const cyclePrompt = i === 0
           ? stage1Prompt
           : `${stage1Prompt}\n\n已经写到这里：\n${currentContent1}\n\n请继续完善和补充。`;
 
+        console.log(`[Generation]   - 调用模型...`);
         const cycleResult = await callModelSafe(cyclePrompt, stage1Model, abortSignal);
         
         // 🔥 如果返回null，说明被用户取消（跳转页面），立即退出
         if (cycleResult === null) {
-          console.log('[Generation] Stage 1 aborted by user');
+          console.warn('[Generation] ⚠️ Stage 1 第', i + 1, '轮返回 null，可能是：');
+          console.warn('   1. 用户主动取消（跳转页面）');
+          console.warn('   2. API 请求被中止');
+          console.warn('   3. 网络错误');
+          console.log('[Generation] 当前 abortSignal.aborted:', abortSignal.aborted);
+          console.log('[Generation] 当前 isGenerating:', useStore.getState().generation.isGenerating);
+          
           setGeneration({ isGenerating: false, isGeneratingStage: null });
           return;
         }
+        
+        console.log(`[Generation]   - ✅ 第 ${i + 1} 轮完成，生成 ${cycleResult.length} 字`);
         
         currentContent1 += cycleResult;
         stage1Result = currentContent1;
@@ -187,7 +305,11 @@ export const useCycleGeneration = () => {
             { stage: 1, cycle: i + 1, result: cycleResult, createdAt: Date.now() } as CycleResult,
           ],
         });
+        
+        console.log(`[Generation]   - 累计字数: ${currentContent1.length}`);
       }
+      
+      console.log(`[Generation] ✅ Stage 1 全部完成，总字数: ${stage1Result.length}`);
 
       // 🔥 Stage 1 完成：添加大纲和人物记忆
       if (currentWorkId && stage1Result) {
@@ -230,15 +352,19 @@ export const useCycleGeneration = () => {
       let stage2Result = '';
       let totalGeneratedWords = 0;
       
-      for (let i = 0; i < CYCLE_CONFIG.stage2.cycles; i++) {
+      // 🔥 动态计算循环次数
+      const stage2Cycles = CYCLE_CONFIG.stage2.getCycles(targetWords);
+      console.log(`[Generation] Stage 2: 目标字数 ${targetWords}, 使用 ${stage2Cycles} 轮循环`);
+      
+      for (let i = 0; i < stage2Cycles; i++) {
         if (abortSignal.aborted) break;
 
         // 🔥 动态计算剩余字数目标
-        const remainingCycles = CYCLE_CONFIG.stage2.cycles - i;
+        const remainingCycles = stage2Cycles - i;
         const remainingTargetWords = targetWords - totalGeneratedWords;
         const dynamicWordsPerCycle = Math.ceil(remainingTargetWords / remainingCycles);
 
-        console.log(`[Generation] Stage 2 Cycle ${i + 1}/${CYCLE_CONFIG.stage2.cycles}:`);
+        console.log(`[Generation] Stage 2 Cycle ${i + 1}/${stage2Cycles}:`);
         console.log(`  - 本轮目标: ${dynamicWordsPerCycle} 字`);
         console.log(`  - 已生成: ${totalGeneratedWords} 字`);
         console.log(`  - 剩余目标: ${remainingTargetWords} 字`);
@@ -277,7 +403,7 @@ export const useCycleGeneration = () => {
         console.log(`  - 实际生成: ${actualWords} 字 (${(actualWords/dynamicWordsPerCycle*100).toFixed(1)}%)`);
         
         // 🔥 如果字数不足，触发自动续写
-        if (actualWords < minAcceptableWords && i < CYCLE_CONFIG.stage2.cycles - 1) {
+        if (actualWords < minAcceptableWords && i < stage2Cycles - 1) {
           console.warn(`[Generation] ⚠️ 字数不足 (${actualWords}/${minAcceptableWords})，触发自动续写...`);
           
           const continuePrompt = `【紧急任务】上文内容字数不足，请继续往下写！
@@ -343,42 +469,70 @@ ${cycleResult}
       const wordCountRatio = finalWordCount / targetWords;
       
       console.log(`[Generation] Stage 2 完成:`);
-      console.log(`  - 目标字数: ${targetWords}`);
-      console.log(`  - 实际字数: ${finalWordCount}`);
+      console.log(`  - 目标字数: ${targetWords.toLocaleString()}`);
+      console.log(`  - 实际字数: ${finalWordCount.toLocaleString()}`);
       console.log(`  - 完成率: ${(wordCountRatio * 100).toFixed(1)}%`);
       
-      // 🔥 如果字数严重不足（低于80%），触发最终补救
-      if (wordCountRatio < 0.8 && !abortSignal.aborted) {
-        console.warn(`[Generation] ⚠️ 字数严重不足 (${finalWordCount}/${targetWords})，触发最终补救...`);
+      // 🔥 如果字数不足（低于85%），触发最终补救（最多2次）
+      const minAcceptableRatio = 0.85;
+      let rescueAttempts = 0;
+      const maxRescueAttempts = 2;
+      
+      while (wordCountRatio < minAcceptableRatio && rescueAttempts < maxRescueAttempts && !abortSignal.aborted) {
+        rescueAttempts++;
+        const remainingWords = Math.ceil(targetWords - currentContent2.length);
+        const currentRatio = (currentContent2.length / targetWords * 100).toFixed(1);
         
-        const remainingWords = Math.ceil(targetWords - finalWordCount);
-        const rescuePrompt = `【最终补救任务】当前小说字数严重不足，需要补充内容！
-
-已生成内容（前500字）：
-${currentContent2.substring(0, 500)}
-...
-（中间省略）
-...
-已生成内容（后500字）：
-${currentContent2.slice(-500)}
-
-还需要至少再写 ${remainingWords} 字才能达到目标。
-请从故事中间部分继续展开，添加新的情节、对话或细节描写，不要重复已有内容。
-可以直接扩展现有场景，或者引入新的事件发展。`;
+        console.warn(`[Generation] ⚠️ 字数不足 (${currentContent2.length}/${targetWords}, ${currentRatio}%)，触发第${rescueAttempts}次智能补救...`);
+        console.log(`[Generation]   - 还需补充: ${remainingWords.toLocaleString()} 字`);
+        
+        // 🔥 智能分析内容质量
+        const analysis = analyzeContentQuality(currentContent2);
+        console.log(`[Generation] 📊 内容质量分析:`);
+        console.log(`   - 平均段落长度: ${Math.round(analysis.avgParagraphLength)} 字`);
+        console.log(`   - 对话比例: ${(analysis.dialogueRatio * 100).toFixed(1)}%`);
+        console.log(`   - 描写比例: ${(analysis.descriptionRatio * 100).toFixed(1)}%`);
+        console.log(`   - 动作比例: ${(analysis.actionRatio * 100).toFixed(1)}%`);
+        console.log(`   - 薄弱环节: ${analysis.weakSectionTypes.join(', ') || '无明显薄弱'}`);
+        
+        // 🔥 生成针对性的补救 Prompt
+        const rescuePrompt = generateTargetedContinuationPrompt(
+          currentContent2,
+          analysis,
+          remainingWords
+        );
 
         const rescueResult = await callModelSafe(rescuePrompt, stage2Model, abortSignal);
         
-        if (rescueResult !== null) {
-          // 将补救内容插入到中间位置（避免只加在末尾）
-          const insertPosition = Math.floor(currentContent2.length / 2);
-          const beforeInsert = currentContent2.substring(0, insertPosition);
-          const afterInsert = currentContent2.substring(insertPosition);
-          
-          currentContent2 = beforeInsert + '\n\n' + rescueResult + '\n\n' + afterInsert;
-          stage2Result = currentContent2;
-          
-          console.log(`[Generation] ✅ 补救成功，最终字数: ${currentContent2.length}`);
+        if (rescueResult === null) {
+          console.log('[Generation] 补救被用户取消');
+          break;
         }
+        
+        // 🔥 智能插入策略：将内容插入到中间位置
+        const insertPosition = Math.floor(currentContent2.length / 2);
+        const beforeInsert = currentContent2.substring(0, insertPosition);
+        const afterInsert = currentContent2.substring(insertPosition);
+        
+        currentContent2 = beforeInsert + '\n\n' + rescueResult + '\n\n' + afterInsert;
+        stage2Result = currentContent2;
+        
+        const newWordCount = currentContent2.length;
+        const newRatio = (newWordCount / targetWords * 100).toFixed(1);
+        
+        console.log(`[Generation] ✅ 第${rescueAttempts}次补救成功: +${rescueResult.length}字`);
+        console.log(`[Generation]   - 当前总字数: ${newWordCount.toLocaleString()}/${targetWords.toLocaleString()} (${newRatio}%)`);
+        
+        // 如果已经达到95%，提前退出
+        if (newWordCount >= targetWords * 0.95) {
+          console.log('[Generation] ✅ 字数已达标，停止补救');
+          break;
+        }
+      }
+      
+      if (rescueAttempts > 0) {
+        const finalRatio = (currentContent2.length / targetWords * 100).toFixed(1);
+        console.log(`[Generation] 📊 补救总结: 共补救${rescueAttempts}次，最终字数 ${currentContent2.length.toLocaleString()}/${targetWords.toLocaleString()} (${finalRatio}%)`);
       }
       
       // 🔥 Stage 2 完成：添加完整正文记忆
@@ -427,7 +581,7 @@ ${currentContent2.slice(-500)}
         setGeneration({
           stage3Result: currentContent3,
           currentCycle: i + 1,
-          completedCycles: CYCLE_CONFIG.stage1.cycles + CYCLE_CONFIG.stage2.cycles + (i + 1),
+          completedCycles: CYCLE_CONFIG.stage1.cycles + stage2Cycles + (i + 1), // 🔥 使用动态计算的 stage2Cycles
           cycleResults: [
             ...generation.cycleResults,
             { stage: 3, cycle: i + 1, result: cycleResult, createdAt: Date.now() } as CycleResult,

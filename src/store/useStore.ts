@@ -329,7 +329,7 @@ interface AppState {
   toggleDarkMode: () => void;
   resetGeneration: () => void;
   setWorks: (works: Work[]) => void;
-  addWork: (work: Work) => void;
+  addWork: (work: Work) => Promise<Work>;
   updateWork: (id: string, updates: Partial<Work>) => void;
   deleteWork: (id: string) => Promise<void>;
   addCharacter: (character: Character) => void;
@@ -518,16 +518,17 @@ export const useStore = create<AppState>()(
         }),
         setWorks: (works: Work[]) => set({ works }),
         addWork: async (work: Work) => {
+          // 🔥 不再传入前端生成的ID，让后端生成
+          const { id, ...workWithoutId } = work;
+          
+          const savedWork = await dbService.addWork(workWithoutId as any);
+          
+          // 🔥 使用后端返回的作品数据（包含后端生成的ID）
           set((state) => ({
-            works: [work, ...state.works],
+            works: [savedWork, ...state.works],
           }));
-          // 保存到数据库
-          try {
-            await dbService.addWork(work);
-            console.log('✅ 作品已保存到数据库:', work.id);
-          } catch (error) {
-            console.error('❌ 保存作品到数据库失败:', error);
-          }
+          console.log('✅ 作品已保存到数据库:', savedWork.id);
+          return savedWork; // 🔥 返回保存后的作品
         },
         updateWork: async (id: string, updates: Partial<Work>) => {
           set((state) => ({
@@ -597,6 +598,12 @@ export const useStore = create<AppState>()(
     }
   )
 );
+
+
+
+
+
+
 
 
 

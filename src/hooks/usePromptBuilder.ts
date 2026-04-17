@@ -7,6 +7,50 @@ const CYCLE_CONFIG = {
   stage3: { cycles: 2 },
 };
 
+/**
+ * 🔥 清理生成内容，移除不应该出现在成品中的元信息
+ */
+export const cleanGeneratedContent = (content: string): string => {
+  if (!content) return content;
+
+  let cleaned = content;
+
+  // 1. 移除章节标题重复（如"第1章：XXX"）
+  cleaned = cleaned.replace(/^#{1,6}\s*第[一二三四五六七八九十\d]+章[：:].*$/gm, '');
+  
+  // 2. 移除人物设定说明
+  cleaned = cleaned.replace(/^(?:主角|配角|人物|角色)[人设设定]*[:：].*$/gm, '');
+  cleaned = cleaned.replace(/^-?\s*(?:姓名|年龄|性格|缺陷|动机|背景)[:：].*$/gm, '');
+  
+  // 3. 移除情节分析/写作指导
+  cleaned = cleaned.replace(/^(?:本章|这里|接下来|应该|需要).*(?:描写|展现|突出|强调|反转|冲突).*$/gm, '');
+  cleaned = cleaned.replace(/^(?:【|\[).*(?:要点|提示|注意|说明|分析).*(?:】|\]).*$/gm, '');
+  
+  // 4. 移除元信息标注
+  cleaned = cleaned.replace(/^(?:情感线索|角色成长|伏笔铺垫|剧情走向)[:：].*$/gm, '');
+  cleaned = cleaned.replace(/^(?:故事大纲|分章梗概|预计章节).*$/gm, '');
+  
+  // 5. 移除字数标注（保留最后一个）
+  const wordCountMatches = cleaned.match(/\[?字数[：:]\s*\d+\]?/g);
+  if (wordCountMatches && wordCountMatches.length > 1) {
+    // 移除所有字数标注
+    cleaned = cleaned.replace(/\[?字数[：:]\s*\d+\]?/g, '');
+    // 在末尾重新添加总字数
+    const totalWords = cleaned.replace(/\s/g, '').length;
+    cleaned += `\n\n[字数：${totalWords}]`;
+  }
+  
+  // 6. 移除空行过多的部分
+  cleaned = cleaned.replace(/\n{4,}/g, '\n\n\n');
+  
+  // 7. 去除首尾空白
+  cleaned = cleaned.trim();
+
+  console.log(`[cleanGeneratedContent] 清理前: ${content.length}字, 清理后: ${cleaned.length}字`);
+  
+  return cleaned;
+};
+
 export const usePromptBuilder = () => {
 
   const getPlatformName = (platform: string): string => {
@@ -153,11 +197,29 @@ ${detail?.randomInterlude ? '- 需要插入生活化随机插曲\n' : ''}
 
   const buildStage1Prompt = (params: GenerationParams): string => {
     const {
-      topic, keywords, wordCount, style,
+      topic, keywords, wordCount, style, novelLength,
       reader, character, plot, rhythm, detail, emotion, antiAI
     } = params;
 
     const platformName = getPlatformName(reader?.targetPlatform || '');
+    
+    // 🔥 根据目标字数和篇幅类型，计算建议的章节数
+    let suggestedChapterCount: number;
+    let suggestedWordsPerChapter: number;
+    
+    if (novelLength === 'short' || wordCount <= 10000) {
+      // 短篇：3-5章
+      suggestedChapterCount = Math.max(3, Math.min(5, Math.ceil(wordCount / 2500)));
+      suggestedWordsPerChapter = Math.ceil(wordCount / suggestedChapterCount);
+    } else if (novelLength === 'medium' || wordCount <= 20000) {
+      // 中篇：5-8章
+      suggestedChapterCount = Math.max(5, Math.min(8, Math.ceil(wordCount / 2500)));
+      suggestedWordsPerChapter = Math.ceil(wordCount / suggestedChapterCount);
+    } else {
+      // 长篇：按每章2500字计算
+      suggestedChapterCount = Math.min(50, Math.ceil(wordCount / 2500));
+      suggestedWordsPerChapter = 2500;
+    }
 
     return `【最高优先级指令】你必须使用简体中文输出！绝对禁止使用英文或其他语言！
 
@@ -167,12 +229,39 @@ ${detail?.randomInterlude ? '- 需要插入生活化随机插曲\n' : ''}
 关键词：${keywords}
 目标总字数：${wordCount} 字
 整体文风：${style || '符合平台主流风格'}
+篇幅类型：${novelLength === 'short' ? '短篇' : novelLength === 'medium' ? '中篇' : novelLength === 'long' ? '长篇' : '未指定'}
+
+## ⚠️ 章节规划要求（极其重要）
+1. **必须根据目标总字数 ${wordCount} 字来规划章节数**
+2. **建议章节数：${suggestedChapterCount} 章**
+3. **建议每章字数：${suggestedWordsPerChapter} 字左右**
+4. **所有章节字数总和必须接近 ${wordCount} 字**
+5. 例如：如果目标是10000字，应该规划为4章×2500字，而不是10章×500字
 
 ## ⚠️ 输出格式要求（极其重要）
 1. **必须使用简体中文** - 禁止任何英文单词、句子或段落
 2. **必须按照以下结构输出** - 不要自由发挥
 3. **每个章节用一句话概括** - 不要展开详细内容
 4. **人物设定要简洁** - 只写核心特征
+5. **章节标题要简练有力** - 控制在8-15字以内，避免冗长描述
+
+## 📝 章节标题规范（极其重要）
+### ✅ 正确示例（简练有力）：
+- 初入江湖
+- 意外相遇
+- 危机四伏
+- 绝地反击
+- 真相大白
+
+### ❌ 错误示例（过于冗长）：
+- 主人公第一次来到这个陌生的地方并且遇到了一个神秘的人
+- 在经过一番激烈的战斗之后终于取得了胜利
+- 两个人在咖啡馆里聊天聊了很多关于过去的事情
+
+### 标题要求：
+- 字数限制：8-15字
+- 风格：简洁、有吸引力、富有张力
+- 避免：描述性语句、连词过多、口语化表达
 
 ## 设定参数
 ### 读者定位
@@ -220,7 +309,8 @@ ${plot?.forceConflictAtStart ? '- 开篇强制冲突\n' : ''}${plot?.seedForesha
 ...
 
 # 四、预计章节列表
-共XX章，每章约XXX字
+共${suggestedChapterCount}章，每章约${suggestedWordsPerChapter}字
+（说明：总字数 = ${suggestedChapterCount}章 × ${suggestedWordsPerChapter}字/章 ≈ ${wordCount}字）
 
 ---
 再次强调：所有内容必须使用简体中文，禁止出现任何英文！`;
@@ -290,11 +380,27 @@ ${stage1Result}
     }
 
     prompt += `\n⚠️ **再次强调**: 
-1. 请 ensure生成内容达到 ${wordsPerCycle} 字 above，otherwise视为任务 failed！
-2. **必须使用简体中文 output**，禁止 any English words or sentences！
-3. If feel words not enough，please use expansion techniques (add dialogue, psychological description, environmental details, etc.) to充实 content.
+1. **必须确保生成内容达到 ${wordsPerCycle} 字以上**，否则视为任务失败！
+2. **必须使用简体中文输出**，禁止任何英文单词或句子！
+3. **只写故事正文内容**，不要包含任何分析、说明、设定介绍！
+4. 如果感觉字数不够，请使用扩写技巧（增加对话、心理描写、环境细节等）来充实内容。
 
-Please directly start write story正文， do not summarize, do not explain, just write story content.`;
+## 🚫 严格禁止的内容（绝对不能出现）
+- ❌ 人物设定说明（如"主角性格：XXX"）
+- ❌ 情节分析（如"这里应该有一个反转"）
+- ❌ 写作指导（如"接下来要描写冲突"）
+- ❌ 元信息标注（如"【本章要点】"、"【情感线索】"）
+- ❌ 章节标题重复（不要在正文中再次写"第X章：XXX"）
+- ❌ 任何非故事内容的说明文字
+
+## ✅ 正确的输出格式
+直接开始写故事正文，就像小说一样：
+- 以场景描写或人物动作开头
+- 包含对话、心理活动、环境描写
+- 自然推进情节发展
+- 在文末标注：[字数：XXXX]
+
+Please directly begin write story正文， don't summarize, don't explain, directly write story content.`;
 
     return prompt;
   };
@@ -308,13 +414,20 @@ Please directly start write story正文， do not summarize, do not explain, jus
 
     let prompt = `请帮我打磨优化以下这篇小说，去除AI痕迹，让它更像真人写的。
 
-## 相关 memory reference（ensure not change core plot and character setting）
+## 📋 相关记忆 reference（ensure not change core plot and character setting）
 ${relatedMemory || '（无相关记忆）'}
 
-原文：
+## 📖 需要优化的原文
 ${currentContent}
 
-优化要求：
+## ✨ 优化要求
+
+### 1. 保持故事完整性
+- ✅ 保留所有情节发展和人物对话
+- ✅ 保持原有的故事走向和节奏
+- ❌ 不要删除重要情节或改变剧情
+
+### 2. 去除AI痕迹
 `;
 
     if (antiAI?.templateDeletePercent && antiAI.templateDeletePercent > 0) {
@@ -335,8 +448,9 @@ ${currentContent}
 1. 保持原有故事走向、人物设定、关键情节不变
 2. 只优化文笔质感，去除AI痕迹
 3. 如果原文中有伏笔或关键信息，必须保留
+4. **必须使用简体中文输出**，禁止任何英文单词或句子
 
-Please directly output optimized full text.`;
+Please directly output optimized后的 complete text.`;
 
     return prompt;
   };

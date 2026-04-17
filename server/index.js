@@ -17,6 +17,7 @@ import historyRouter from './routes/history.js';
 import configRouter from './routes/config.js';
 import novelMemoryRouter from './routes/novel-memory.js';
 import popularTopicsRouter from './routes/popular-topics.js';
+import chaptersRouter from './routes/chapters.js';
 import { NovelMemoryManager } from './utils/memory-manager.js';
 
 const PORT = 3000;
@@ -47,7 +48,14 @@ app.use((req, res, next) => {
 let db;
 try {
   db = new Database(DB_PATH);
+  
+  // 🔥 配置 SQLite 以避免 database is locked 错误
+  db.pragma('journal_mode = WAL');  // 使用 WAL 模式，提高并发性能
+  db.pragma('busy_timeout = 5000'); // 设置 5 秒超时，等待锁释放
+  db.pragma('foreign_keys = ON');   // 启用外键约束
+  
   console.log(`✅ 数据库连接成功: ${DB_PATH}`);
+  console.log('✅ SQLite 配置: WAL 模式, busy_timeout=5000ms');
   initDatabase(db);
 } catch (error) {
   console.error('❌ 数据库连接失败:', error);
@@ -87,9 +95,11 @@ function initDatabase(db) {
       summary TEXT,
       content TEXT,
       word_count INTEGER,
+      status TEXT DEFAULT 'draft',
       created_at INTEGER,
       updated_at INTEGER,
-      deleted_at INTEGER
+      deleted_at INTEGER,
+      UNIQUE(work_id, chapter_number)
     )
   `);
 
@@ -266,6 +276,82 @@ function initDatabase(db) {
   }
 
   console.log('✅ 所有数据表初始化完成');
+  
+  // 🔥 执行数据库迁移
+  runMigrations(db);
+}
+
+/**
+ * 数据库迁移函数
+ */
+function runMigrations(db) {
+  try {
+    // 🔥 检查并修复 chapters 表结构
+    const chapterColumns = db.prepare("PRAGMA table_info(chapters)").all();
+    const hasStatusColumn = chapterColumns.some(col => col.name === 'status');
+    
+    if (!hasStatusColumn) {
+      console.log('[Migration] 🔄 检测到 chapters 表缺少 status 字段，开始迁移...');
+      
+      try {
+        db.exec(`BEGIN TRANSACTION`);
+        
+        // 创建新表（包含 status 字段和唯一约束）
+        db.exec(`
+          CREATE TABLE IF NOT EXISTS chapters_new (
+            id TEXT PRIMARY KEY,
+            work_id TEXT,
+            chapter_number INTEGER,
+            title TEXT,
+            summary TEXT,
+            content TEXT,
+            word_count INTEGER,
+            status TEXT DEFAULT 'draft',
+            created_at INTEGER,
+            updated_at INTEGER,
+            deleted_at INTEGER,
+            UNIQUE(work_id, chapter_number)
+          )
+        `);
+        
+        // 复制数据（旧表没有 status，设置为默认值 'draft'）
+        db.exec(`
+          INSERT OR IGNORE INTO chapters_new 
+          SELECT id, work_id, chapter_number, title, summary, content, word_count, 
+                 'draft' as status, created_at, updated_at, deleted_at 
+          FROM chapters
+        `);
+        
+        // 删除旧表
+        db.exec(`DROP TABLE chapters`);
+        
+        // 重命名新表
+        db.exec(`ALTER TABLE chapters_new RENAME TO chapters`);
+        
+        db.exec(`COMMIT`);
+        
+        console.log('[Migration] ✅ chapters 表迁移完成，已添加 status 字段和唯一约束');
+      } catch (migrationError) {
+        db.exec(`ROLLBACK`);
+        console.error('[Migration] ⚠️ chapters 表迁移失败，回滚事务:', migrationError.message);
+      }
+    } else {
+      console.log('[Migration] ✅ chapters 表已有 status 字段');
+      
+      // 检查是否有唯一约束
+      const tableInfo = db.prepare("PRAGMA index_list(chapters)").all();
+      const hasUniqueConstraint = tableInfo.some(idx => idx.name.includes('work_id'));
+      
+      if (!hasUniqueConstraint) {
+        console.log('[Migration] ⚠️ 检测到 chapters 表缺少唯一约束');
+        console.log('[Migration] 💡 建议：如需添加唯一约束，请手动重建表');
+      } else {
+        console.log('[Migration] ✅ chapters 表已有唯一约束');
+      }
+    }
+  } catch (error) {
+    console.error('[Migration] ❌ 迁移检查失败:', error.message);
+  }
 }
 
 // 初始化记忆管理系统
@@ -292,6 +378,7 @@ app.use('/api', outlinesRouter(db));
 app.use('/api', historyRouter(db));
 app.use('/api', configRouter(db));
 app.use('/api', popularTopicsRouter(db));
+app.use('/api', chaptersRouter(db)); // 🔥 添加章节路由
 
 // ========== 启动服务器 ==========
 app.listen(PORT, async () => {

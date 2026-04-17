@@ -1,12 +1,13 @@
 import { useCallback } from 'react';
+import { embeddingService } from '../services/embedding';
 
 /**
- * 记忆管理Hook
+ * 记忆管理Hook（增强版 - 使用语义嵌入）
  * 用于在生成过程中检索和存储记忆
  */
 export const useMemory = () => {
   /**
-   * 检索相关记忆
+   * 检索相关记忆（使用语义相似度）
    * @param query - 查询文本
    * @param topK - 返回数量
    * @param filterType - 过滤类型
@@ -17,6 +18,34 @@ export const useMemory = () => {
     filterType?: string
   ): Promise<string> => {
     try {
+      // 🔥 尝试使用语义搜索
+      if (embeddingService.isReady()) {
+        try {
+          console.log('[Memory] Using semantic search...');
+          const response = await fetch('/api/memory/search', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+              query, 
+              topK, 
+              filterType,
+              useSemanticSearch: true 
+            }),
+          });
+
+          const data = await response.json();
+          
+          if (data.success && data.formatted) {
+            console.log(`[Memory] ✅ Semantic search retrieved ${data.results?.length || 0} memories`);
+            return data.formatted;
+          }
+        } catch (error) {
+          console.warn('[Memory] Semantic search failed, falling back to keyword search:', error);
+        }
+      }
+      
+      // 🔥 降级到关键词搜索
+      console.log('[Memory] Using keyword search...');
       const response = await fetch('/api/memory/search', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -38,7 +67,7 @@ export const useMemory = () => {
   }, []);
 
   /**
-   * 添加章节记忆
+   * 添加章节记忆（带嵌入向量）
    */
   const addChapterMemory = useCallback(async (
     chapterId: string,
@@ -47,6 +76,18 @@ export const useMemory = () => {
     summary: string
   ) => {
     try {
+      // 🔥 生成内容嵌入向量（异步，不阻塞）
+      let embedding: number[] | null = null;
+      try {
+        if (embeddingService.isReady()) {
+          // 使用摘要生成嵌入，节省计算资源
+          const textToEmbed = `${title} ${summary}`;
+          embedding = await embeddingService.embed(textToEmbed);
+        }
+      } catch (error) {
+        console.warn('[Memory] Failed to generate embedding, continuing without it:', error);
+      }
+
       await fetch('/api/memory/chapter', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -55,9 +96,10 @@ export const useMemory = () => {
           title,
           content,
           summary,
+          embedding, // 🔥 添加嵌入向量
         }),
       });
-      console.log(`[Memory] Added chapter memory: ${title}`);
+      console.log(`[Memory] Added chapter memory: ${title}${embedding ? ' (with embedding)' : ''}`);
     } catch (error) {
       console.error('[Memory] Add chapter failed:', error);
     }

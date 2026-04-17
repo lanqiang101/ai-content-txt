@@ -135,6 +135,11 @@ export const InputPanel: React.FC = () => {
               <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
                 小说篇幅
               </label>
+              <span className="text-xs text-gray-500 dark:text-gray-400">
+                {singleParams.novelLength === 'short' && '适合 <10000字'}
+                {singleParams.novelLength === 'medium' && '适合 10000-20000字'}
+                {singleParams.novelLength === 'long' && '适合 >20000字（逐章生成）'}
+              </span>
             </div>
             <div className="flex gap-3">
               <button
@@ -146,6 +151,16 @@ export const InputPanel: React.FC = () => {
                 onClick={() => setSingleParams({ novelLength: 'short', initialChapters: undefined })}
               >
                 短篇
+              </button>
+              <button
+                className={`px-4 py-2 rounded-xl transition-all ${
+                  singleParams.novelLength === 'medium'
+                    ? "bg-primary text-white shadow-md shadow-primary/20"
+                    : "bg-gray-100 text-gray-700 dark:bg-slate-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-slate-600"
+                }`}
+                onClick={() => setSingleParams({ novelLength: 'medium', initialChapters: undefined })}
+              >
+                中篇
               </button>
               <button
                 className={`px-4 py-2 rounded-xl transition-all ${

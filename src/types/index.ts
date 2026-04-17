@@ -161,6 +161,7 @@ export interface Chapter {
   summary: string;
   content: string;
   wordCount: number;
+  status?: 'draft' | 'generating' | 'completed' | 'failed' | 'revised'; // 🔥 添加状态字段
   stageData: StageData;
   createdAt: number;
   updatedAt: number;

@@ -1,8 +1,9 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import { Trash2, FileText, BookOpen, Clapperboard, Play, Square } from "lucide-react";
+import { Trash2, FileText, BookOpen, Clapperboard, Play, Square, Download } from "lucide-react";
 import { Work, WorkStatus } from "../../types";
 import { Tooltip } from "../Tooltip";
+import { useStore } from "../../store/useStore";
 
 interface WorkCardProps {
   work: Work;
@@ -13,6 +14,61 @@ interface WorkCardProps {
 
 export const WorkCard: React.FC<WorkCardProps> = ({ work, onSelect, onDelete, onStopTask }) => {
   const navigate = useNavigate();
+  const { works } = useStore();
+  
+  // 🔥 下载全本小说功能
+  const handleDownloadNovel = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    
+    try {
+      // 获取当前作品的所有章节
+      const currentWork = works.find(w => w.id === work.id);
+      if (!currentWork || !currentWork.chapters || currentWork.chapters.length === 0) {
+        alert('该作品暂无章节内容');
+        return;
+      }
+
+      // 按章节号排序
+      const sortedChapters = [...currentWork.chapters].sort((a, b) => 
+        a.chapterNumber - b.chapterNumber
+      );
+
+      // 构建小说文本
+      let novelContent = `${work.title || '未命名作品'}\n\n`;
+      novelContent += `作者：AI创作助手\n`;
+      novelContent += `类型：${work.type === 'article' ? '公众号文章' : '小说'}\n`;
+      novelContent += `总字数：${work.actualWordCount.toLocaleString()} 字\n`;
+      novelContent += `生成时间：${new Date(work.createdAt).toLocaleString('zh-CN')}\n\n`;
+      novelContent += '='.repeat(50) + '\n\n';
+
+      sortedChapters.forEach((chapter, index) => {
+        novelContent += `第${chapter.chapterNumber}章 ${chapter.title}\n\n`;
+        novelContent += chapter.content || '';
+        novelContent += '\n\n';
+        
+        // 章节之间添加分隔线（最后一章不加）
+        if (index < sortedChapters.length - 1) {
+          novelContent += '-'.repeat(30) + '\n\n';
+        }
+      });
+
+      // 创建 Blob 并下载
+      const blob = new Blob([novelContent], { type: 'text/plain;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${work.title || '未命名作品'}_完整版.txt`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      console.log('[WorkCard] ✅ 小说下载成功');
+    } catch (error) {
+      console.error('[WorkCard] ❌ 下载失败:', error);
+      alert('下载失败，请重试');
+    }
+  };
   
   // 🔥 安全的时间格式化函数
   const formatDate = (timestamp: number | undefined | null) => {
@@ -115,6 +171,18 @@ export const WorkCard: React.FC<WorkCardProps> = ({ work, onSelect, onDelete, on
               </button>
             </>
           )}
+          
+          {/* 🔥 下载全本小说按钮 */}
+          <button
+            onClick={handleDownloadNovel}
+            disabled={!work.chapters || work.chapters.length === 0}
+            className="opacity-0 group-hover:opacity-100 p-1.5 text-green-500 hover:text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 disabled:text-gray-300 disabled:cursor-not-allowed rounded-lg transition-all"
+            title={!work.chapters || work.chapters.length === 0 ? '暂无章节内容' : '下载全本小说'}
+          >
+            <Tooltip content="下载全本">
+              <Download size={14} />
+            </Tooltip>
+          </button>
           
           <button
             onClick={handleStoryboardClick}

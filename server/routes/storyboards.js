@@ -1,4 +1,5 @@
 import express from 'express';
+import { v4 as uuidv4 } from 'uuid';
 
 const router = express.Router();
 
@@ -25,10 +26,29 @@ export default function (db) {
     try {
       const storyboard = req.body;
       const now = Date.now();
+      
+      // 🔥 由后端生成UUID
+      const storyboardId = uuidv4();
+      
       const stmt = db.prepare(`INSERT INTO storyboards (id, work_id, config, prompts, total_duration, created_at) VALUES (?, ?, ?, ?, ?, ?)`);
-      stmt.run(storyboard.id, storyboard.workId, JSON.stringify(storyboard.config), JSON.stringify(storyboard.prompts), storyboard.totalDuration, storyboard.createdAt || now);
-      res.json(storyboard);
-    } catch (error) {res.status(500).json({error: error.message});}
+      stmt.run(
+        storyboardId,  // 🔥 使用后端生成的ID
+        storyboard.workId, 
+        JSON.stringify(storyboard.config), 
+        JSON.stringify(storyboard.prompts), 
+        storyboard.totalDuration, 
+        storyboard.createdAt || now
+      );
+      
+      // 🔥 返回包含后端生成ID的完整分镜数据
+      res.json({
+        ...storyboard,
+        id: storyboardId,
+      });
+    } catch (error) {
+      console.error('[Storyboards] Add storyboard error:', error);
+      res.status(500).json({ error: error.message });
+    }
   });
 
   // 删除分镜

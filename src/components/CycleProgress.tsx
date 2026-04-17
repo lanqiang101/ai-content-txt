@@ -67,8 +67,92 @@ const STAGE_INFO: Record<number, StageInfo> = {
 
 export const CycleProgress: React.FC = () => {
   const { generation } = useStore();
-  const { completedCycles, isGenerating } = generation;
+  const { completedCycles, isGenerating, currentStage, isGeneratingStage } = generation;
 
+  // 🔥 判断是否为逐章生成模式（根据 currentWorkId 和章节数推断）
+  const isChapterMode = isGeneratingStage === 2 && currentStage === 1;
+  
+  // 🔥 如果是逐章生成模式，使用不同的进度计算逻辑
+  if (isChapterMode) {
+    // 逐章生成模式：completedCycles 表示已完成的章节数
+    // 我们需要从 Store 中获取总章节数
+    const { works, currentWorkId } = useStore.getState();
+    const currentWork = works.find(w => w.id === currentWorkId);
+    const totalChapters = currentWork?.chapterCount || 8; // 默认8章
+    
+    const chapterProgress = Math.min((completedCycles / totalChapters) * 100, 100);
+    
+    return (
+      <div className="fixed right-6 top-24 w-80 z-30">
+        <div className="bg-white/90 dark:bg-slate-800/95 backdrop-blur-xl rounded-2xl shadow-xl border border-gray-200/50 dark:border-slate-700/50 p-5 transition-all duration-300 hover:shadow-2xl">
+          {/* 标题栏 */}
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-bold text-gray-800 dark:text-white flex items-center gap-2">
+              {isGenerating && <Loader2 size={16} className="animate-spin text-primary" />}
+              创作进度
+            </h3>
+            <div className="text-sm text-gray-500 dark:text-gray-400 font-medium">
+              {completedCycles}/{totalChapters} 章
+            </div>
+          </div>
+
+          {/* 总体进度条 */}
+          <div className="mb-5">
+            <div className="h-2 rounded-full bg-gray-200 dark:bg-slate-700 overflow-hidden">
+              <div 
+                className="h-full rounded-full bg-gradient-to-r from-purple-500 to-pink-500 transition-all duration-700 ease-out"
+                style={{ width: `${chapterProgress}%` }}
+              />
+            </div>
+            <div className="mt-2 text-xs text-gray-500 dark:text-gray-400 text-right">
+              {Math.round(chapterProgress)}% 完成
+            </div>
+          </div>
+
+          {/* 逐章生成模式提示 */}
+          <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-700 rounded-xl p-3 mb-4">
+            <div className="text-sm font-medium text-purple-700 dark:text-purple-300 mb-1">
+              📖 逐章生成模式
+            </div>
+            <div className="text-xs text-purple-600 dark:text-purple-400">
+              正在生成第 {completedCycles + 1} 章...
+            </div>
+          </div>
+
+          {/* 简化为单阶段显示 */}
+          <div className="grid grid-cols-1 gap-3">
+            <div className="relative p-3 rounded-xl border bg-purple-50 dark:bg-purple-900/20 border-purple-200 dark:border-purple-700 text-purple-700 dark:text-purple-300 shadow-md">
+              <div className="text-xs font-bold mb-1">
+                当前阶段
+              </div>
+              <div className="text-[10px] mb-2 opacity-80">
+                逐章内容生成
+              </div>
+              
+              {/* 章节进度条 */}
+              <div className="h-1.5 rounded-full bg-gray-200 dark:bg-slate-600 overflow-hidden mb-1">
+                <div 
+                  className="h-full transition-all duration-500 ease-out bg-purple-500"
+                  style={{ width: `${chapterProgress}%` }}
+                />
+              </div>
+
+              <div className="text-[10px] text-right font-medium">
+                {completedCycles}/{totalChapters} 章
+              </div>
+
+              {/* 状态指示器 */}
+              <div className="absolute -top-1 -right-1 w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center animate-pulse">
+                <Loader2 size={10} className="text-white animate-spin" />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // 🔥 传统多轮生成模式：使用原有的7次循环逻辑
   // 计算每个阶段完成次数 - 简化逻辑，直接用全局索引
   const getStageCompleted = (stage: number) => {
     return CYCLE_SCHEDULE.filter((item, globalIndex) => {

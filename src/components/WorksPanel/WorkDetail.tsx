@@ -1,6 +1,7 @@
 import React, { useState } from "react";
-import { X, FileText } from "lucide-react";
+import { X, FileText, Download } from "lucide-react";
 import { Work } from "../../types";
+import { useStore } from "../../store/useStore";
 
 interface WorkDetailProps {
   work: Work;
@@ -10,6 +11,59 @@ interface WorkDetailProps {
 
 export const WorkDetail: React.FC<WorkDetailProps> = ({ work, onClose, onLoad }) => {
   const [activeTab, setActiveTab] = useState<"info" | "content">("info");
+  const { works } = useStore();
+
+  // 🔥 下载全本小说功能
+  const handleDownloadNovel = async () => {
+    try {
+      // 获取当前作品的所有章节
+      const currentWork = works.find(w => w.id === work.id);
+      if (!currentWork || !currentWork.chapters || currentWork.chapters.length === 0) {
+        alert('该作品暂无章节内容');
+        return;
+      }
+
+      // 按章节号排序
+      const sortedChapters = [...currentWork.chapters].sort((a, b) => 
+        a.chapterNumber - b.chapterNumber
+      );
+
+      // 构建小说文本
+      let novelContent = `${work.title || '未命名作品'}\n\n`;
+      novelContent += `作者：AI创作助手\n`;
+      novelContent += `类型：${work.type === 'article' ? '公众号文章' : '小说'}\n`;
+      novelContent += `总字数：${work.actualWordCount.toLocaleString()} 字\n`;
+      novelContent += `生成时间：${new Date(work.createdAt).toLocaleString('zh-CN')}\n\n`;
+      novelContent += '='.repeat(50) + '\n\n';
+
+      sortedChapters.forEach((chapter, index) => {
+        novelContent += `第${chapter.chapterNumber}章 ${chapter.title}\n\n`;
+        novelContent += chapter.content || '';
+        novelContent += '\n\n';
+        
+        // 章节之间添加分隔线（最后一章不加）
+        if (index < sortedChapters.length - 1) {
+          novelContent += '-'.repeat(30) + '\n\n';
+        }
+      });
+
+      // 创建 Blob 并下载
+      const blob = new Blob([novelContent], { type: 'text/plain;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${work.title || '未命名作品'}_完整版.txt`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      console.log('[WorkDetail] ✅ 小说下载成功');
+    } catch (error) {
+      console.error('[WorkDetail] ❌ 下载失败:', error);
+      alert('下载失败，请重试');
+    }
+  };
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
@@ -100,6 +154,15 @@ export const WorkDetail: React.FC<WorkDetailProps> = ({ work, onClose, onLoad })
             className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg"
           >
             关闭
+          </button>
+          <button
+            onClick={handleDownloadNovel}
+            disabled={!work.chapters || work.chapters.length === 0}
+            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-green-600 hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed rounded-lg transition-colors"
+            title={!work.chapters || work.chapters.length === 0 ? '暂无章节内容' : '下载全本小说'}
+          >
+            <Download size={16} />
+            下载全本
           </button>
           <button
             onClick={onLoad}

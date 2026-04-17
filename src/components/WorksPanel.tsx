@@ -125,7 +125,15 @@ export const WorksPanel: React.FC = () => {
                   key={work.id}
                   work={work}
                   onSelect={() => setSelectedWork(work)}
-                  onDelete={() => deleteWork(work.id)}
+                  onDelete={() => {
+                    const confirmed = window.confirm(
+                      `⚠️ 确定要删除作品"${work.title}"吗？\n\n此操作将同时删除：\n• 所有章节数据（${work.chapterCount || 0} 章）\n• 所有人物设定\n• 作品元信息\n\n删除后无法恢复！`
+                    );
+                    
+                    if (confirmed) {
+                      deleteWork(work.id);
+                    }
+                  }}
                 />
               ))}
             </div>

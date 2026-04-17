@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { BaseParamsPanel } from "./components/BaseParamsPanel";
 import { InputPanel } from "./components/InputPanel";
-import { CycleProgress } from "./components/CycleProgress";
+import { GenerationProgressBar } from "./components/GenerationProgressBar"; // 🔥 替换为新的进度条组件
 import { OutputPanels } from "./components/OutputPanels";
 import { GenerateButton } from "./components/GenerateButton";
 import { FinalOutput } from "./components/FinalOutput";
@@ -192,8 +192,7 @@ function App() {
         </div>
       )}
 
-      {/* 悬浮进度条 - 右侧固定 */}
-      <CycleProgress />
+      {/* 🔥 移除右侧悬浮进度条，改为在主内容区显示 */}
 
       <div className="max-w-[1600px] mx-auto h-full flex flex-col pr-[340px]">
         <header className="sticky top-0 z-40 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-b border-gray-200 dark:border-slate-700/50">
@@ -332,6 +331,9 @@ function App() {
 
             {/* 右侧：公共参数 + 输出 - 2/3 宽度 */}
             <div className="xl:col-span-2 flex flex-col min-h-0">
+              {/* 🔥 创作进度条 - 在公共基础参数上方 */}
+              <GenerationProgressBar />
+              
               {/* 公共基础参数区块 - 限制最大高度避免占用太多空间 */}
               <div className="mb-4 ">
                 <BaseParamsPanel />

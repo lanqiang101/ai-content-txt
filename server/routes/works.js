@@ -1,4 +1,5 @@
 import express from 'express';
+import { v4 as uuidv4 } from 'uuid';
 
 const router = express.Router();
 
@@ -124,6 +125,10 @@ export default function (db) {
     try {
       const work = req.body;
       const now = Date.now();
+      
+      // 🔥 如果前端没有传入ID，由后端生成UUID
+      const workId = work.id || uuidv4();
+      
       const stmt = db.prepare(`
         INSERT INTO works (
           id, title, topic, keywords, type, expected_word_count, actual_word_count,
@@ -131,7 +136,7 @@ export default function (db) {
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
       stmt.run(
-        work.id,
+        workId,  // 🔥 使用后端生成的ID或前端传入的ID
         work.title,
         work.topic,
         work.keywords,
@@ -146,8 +151,14 @@ export default function (db) {
         work.content,
         work.generationParams ? JSON.stringify(work.generationParams) : null
       );
-      res.json(work);
+      
+      // 🔥 返回包含ID的完整作品信息
+      res.json({
+        ...work,
+        id: workId,
+      });
     } catch (error) {
+      console.error('[Works] Add work error:', error);
       res.status(500).json({ error: error.message });
     }
   });
@@ -210,9 +221,27 @@ export default function (db) {
   // 删除作品
   router.delete('/works/:id', (req, res) => {
     try {
-      const result = db.prepare('UPDATE works SET deleted_at = ? WHERE id = ?').run(Date.now(), req.params.id);
-      res.json({ success: result.changes > 0 });
+      const workId = req.params.id;
+      
+      // 🔥 先删除该作品的所有章节
+      const chaptersResult = db.prepare('DELETE FROM chapters WHERE work_id = ?').run(workId);
+      console.log(`[Delete Work] Deleted ${chaptersResult.changes} chapters for work ${workId}`);
+      
+      // 🔥 再删除该作品的所有人物设定
+      const charactersResult = db.prepare('DELETE FROM characters WHERE work_id = ?').run(workId);
+      console.log(`[Delete Work] Deleted ${charactersResult.changes} characters for work ${workId}`);
+      
+      // 🔥 最后删除作品本身（软删除）
+      const result = db.prepare('UPDATE works SET deleted_at = ? WHERE id = ?').run(Date.now(), workId);
+      
+      console.log(`[Delete Work] ✅ Successfully deleted work ${workId}`);
+      res.json({ 
+        success: result.changes > 0,
+        deletedChapters: chaptersResult.changes,
+        deletedCharacters: charactersResult.changes,
+      });
     } catch (error) {
+      console.error('[Delete Work] Error:', error);
       res.status(500).json({ error: error.message });
     }
   });
